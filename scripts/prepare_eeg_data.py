@@ -6,7 +6,7 @@ import numpy as np
 import os
 import argparse
 
-def prepare_bci2a_data(data_dir="../datasets/eegdata/bci2a", subject_ids=None, resplit=False):
+def prepare_bci2a_data(data_dir="../datasets/eegdata/bci2a", subject_ids=None, resplit=False, train_ratio=0.9):
     """
     分别合并指定受试者的train_data_original和test_data
     保存为独立的train和test文件到特定子目录
@@ -14,7 +14,8 @@ def prepare_bci2a_data(data_dir="../datasets/eegdata/bci2a", subject_ids=None, r
     Args:
         data_dir: 数据目录
         subject_ids: 受试者编号列表，例如 [1, 2, 3] 或 None（默认处理全部1-9）
-        resplit: 是否重新划分数据集（True: 80/20划分, False: 使用原始划分）
+        resplit: 是否重新划分数据集（True: 按train_ratio划分, False: 使用原始划分）
+        train_ratio: 训练集比例，默认0.9（即90/10划分），仅在resplit=True时生效
     """
     # 如果没有指定，默认处理所有受试者 1-9
     if subject_ids is None:
@@ -36,7 +37,7 @@ def prepare_bci2a_data(data_dir="../datasets/eegdata/bci2a", subject_ids=None, r
     all_test_labels = []
     
     print(f"准备处理的受试者: {subject_ids}")
-    print(f"划分方式: {'重新划分' if resplit else '使用原始训练/测试划分'}")
+    print(f"划分方式: {'重新划分 (训练集比例: ' + str(int(train_ratio*100)) + '%)' if resplit else '使用原始训练/测试划分'}")
     print(f"输出目录: {output_dir}\n")
     
     for subject_id in subject_ids:
@@ -76,16 +77,16 @@ def prepare_bci2a_data(data_dir="../datasets/eegdata/bci2a", subject_ids=None, r
         all_data_combined = all_data_combined[indices]
         all_labels_combined = all_labels_combined[indices]
         
-        # 80/20 划分
-        split_idx = int(len(all_data_combined) * 0.9)
+        # 按指定比例划分
+        split_idx = int(len(all_data_combined) * train_ratio)
         train_data_combined = all_data_combined[:split_idx]
         train_labels_combined = all_labels_combined[:split_idx]
         test_data_combined = all_data_combined[split_idx:]
         test_labels_combined = all_labels_combined[split_idx:]
         
-        print(f"重新划分:")
-        print(f"  训练集: {len(train_data_combined)} 样本 ")
-        print(f"  测试集: {len(test_data_combined)} 样本 ")
+        print(f"重新划分 ({int(train_ratio*100)}/{int((1-train_ratio)*100)}):")
+        print(f"  训练集: {len(train_data_combined)} 样本 ({len(train_data_combined)/len(all_data_combined)*100:.1f}%)")
+        print(f"  测试集: {len(test_data_combined)} 样本 ({len(test_data_combined)/len(all_data_combined)*100:.1f}%)")
     else:
         # 拼接训练数据
         train_data_combined = np.concatenate(all_train_data, axis=0)
@@ -163,14 +164,17 @@ if __name__ == "__main__":
   # 处理指定受试者 (3 和 4)，使用原始划分 → 保存到 sub34/
   python prepare_eeg_data.py --subjects 3,4
   
-  # 处理受试者 3,4，重新划分 → 保存到 resub34/
+  # 处理受试者 3,4，重新划分（默认90/10） → 保存到 resub34/
   python prepare_eeg_data.py --subjects 3,4 --resplit
+  
+  # 处理受试者 3,4，重新划分为80/20 → 保存到 resub34/
+  python prepare_eeg_data.py --subjects 3,4 --resplit --train_ratio 0.8
   
   # 处理受试者范围 (1 到 6)
   python prepare_eeg_data.py --subjects 1-6
   
-  # 混合使用 + 80/20 划分 → 保存到 resub13457/
-  python prepare_eeg_data.py --subjects 1,3-5,7 --resplit
+  # 混合使用 + 自定义划分比例 → 保存到 resub13457/
+  python prepare_eeg_data.py --subjects 1,3-5,7 --resplit --train_ratio 0.85
   
   # 指定数据目录
   python prepare_eeg_data.py --data_dir /path/to/data --subjects 1,2,3
@@ -197,7 +201,18 @@ if __name__ == "__main__":
         help='重新划分数据集（默认使用原始划分，保存到 sub* 目录；使用此选项保存到 resub* 目录）'
     )
     
+    parser.add_argument(
+        '--train_ratio', '-t',
+        type=float,
+        default=0.9,
+        help='训练集比例（默认: 0.9，即90/10划分），仅在使用 --resplit 时生效'
+    )
+    
     args = parser.parse_args()
+    
+    # 验证train_ratio的范围
+    if not 0 < args.train_ratio < 1:
+        parser.error("train_ratio 必须在 0 和 1 之间")
     
     # 解析受试者编号
     subject_ids = parse_subject_ids(args.subjects)
@@ -208,5 +223,5 @@ if __name__ == "__main__":
         print("使用默认设置: 处理所有受试者 (1-9)")
     
     # 执行数据准备
-    prepare_bci2a_data(data_dir=args.data_dir, subject_ids=subject_ids, resplit=args.resplit)
+    prepare_bci2a_data(data_dir=args.data_dir, subject_ids=subject_ids, resplit=args.resplit, train_ratio=args.train_ratio)
 
