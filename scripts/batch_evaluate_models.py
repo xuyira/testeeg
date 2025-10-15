@@ -5,6 +5,7 @@
 
 import argparse
 import os
+import sys
 import glob
 import numpy as np
 import torch
@@ -12,6 +13,12 @@ import torch.nn as nn
 from tqdm.auto import tqdm
 import json
 from datetime import datetime
+
+# 添加项目根目录到 Python 路径
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 # 导入 guided_diffusion 模块
 from guided_diffusion import dist_util
