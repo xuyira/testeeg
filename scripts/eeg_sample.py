@@ -1,31 +1,50 @@
-"""
-从训练好的EEG扩散模型生成样本，保存为.npy格式
-"""
-
 import argparse
 import os
 
+import blobfile as bf
 import numpy as np
 import torch as th
 import torch.distributed as dist
 
-from guided_diffusion import dist_util, logger
-from guided_diffusion.script_util import (
-    NUM_CLASSES,
+from image_adapt.guided_diffusion import dist_util, logger
+from image_adapt.guided_diffusion.script_util import (
     model_and_diffusion_defaults,
     create_model_and_diffusion,
-    add_dict_to_argparser,
     args_to_dict,
+    add_dict_to_argparser,
 )
+from image_adapt.guided_diffusion.image_datasets import load_data
+from torchvision import utils
+import math
+from torch.nn.parallel.distributed import DistributedDataParallel as DDP
+
+
+# added
+def load_reference(data_dir, batch_size, image_size, class_cond=False, corruption="shot_noise", severity=5,):
+    data = load_data(
+        data_dir=data_dir,
+        batch_size=batch_size,
+        image_size=image_size,
+        class_cond=class_cond,
+        deterministic=True,
+        random_flip=False,
+        corruption=corruption,
+        severity=severity,
+    )
+    for large_batch, model_kwargs, filename in data:
+        model_kwargs["ref_img"] = large_batch
+        yield model_kwargs, filename
 
 
 def main():
     args = create_argparser().parse_args()
 
-    dist_util.setup_dist()
-    logger.configure()
+    # th.manual_seed(0)
 
-    logger.log("creating model and diffusion...")
+    dist_util.setup_dist()
+    logger.configure(dir=args.save_dir)
+
+    logger.log("creating model...")
     model, diffusion = create_model_and_diffusion(
         **args_to_dict(args, model_and_diffusion_defaults().keys())
     )
@@ -35,70 +54,64 @@ def main():
     model.to(dist_util.dev())
     if args.use_fp16:
         model.convert_to_fp16()
+
+    model = DDP(
+        model,
+        device_ids=[dist_util.dev()],
+        output_device=dist_util.dev(),
+        broadcast_buffers=False,
+        bucket_cap_mb=128,
+        find_unused_parameters=False,
+    )
     model.eval()
 
-    logger.log("sampling...")
-    all_samples = []
-    all_labels = []
+    logger.log("creating resizers...")
+    assert math.log(args.D, 2).is_integer()
+
+    logger.log("loading data...")
+    data = load_reference(
+        args.base_samples,
+        args.batch_size,
+        image_size=args.image_size,
+        class_cond=args.class_cond,
+        corruption=args.corruption,
+        severity=args.severity,
+    )
+
+    assert args.num_samples >= args.batch_size * dist_util.get_world_size(), "The number of the generated samples will be larger than the specified number."
     
-    while len(all_samples) * args.batch_size < args.num_samples:
-        model_kwargs = {}
-        if args.class_cond:
-            classes = th.randint(
-                low=0, high=NUM_CLASSES, size=(args.batch_size,), device=dist_util.dev()
-            )
-            model_kwargs["y"] = classes
-        
-        sample_fn = (
-            diffusion.p_sample_loop if not args.use_ddim else diffusion.ddim_sample_loop
-        )
-        
-        # ✅ 使用in_channels参数，默认为22（EEG通道数）
-        sample = sample_fn(
+
+    logger.log("creating samples...")
+    count = 0
+    while count * args.batch_size * dist_util.get_world_size() < args.num_samples:
+        model_kwargs, filename = next(data)
+        model_kwargs = {k: v.to(dist_util.dev()) for k, v in model_kwargs.items()}
+        sample = diffusion.p_sample_loop(
             model,
-            (args.batch_size, args.in_channels, args.image_size, args.image_size),
+            (args.batch_size, 3, args.image_size, args.image_size),
             clip_denoised=args.clip_denoised,
             model_kwargs=model_kwargs,
+            noise=model_kwargs["ref_img"],
+            N=args.N,
+            D=args.D,
+            scale=args.scale
         )
-        
-        # ✅ 保持原始范围 [-1, 1]，不转换为图像格式
-        # EEG数据不需要像图像那样转换为uint8
-        sample = sample.contiguous()
 
-        gathered_samples = [th.zeros_like(sample) for _ in range(dist.get_world_size())]
-        dist.all_gather(gathered_samples, sample)
-        all_samples.extend([sample.cpu().numpy() for sample in gathered_samples])
-        
-        if args.class_cond:
-            gathered_labels = [
-                th.zeros_like(classes) for _ in range(dist.get_world_size())
-            ]
-            dist.all_gather(gathered_labels, classes)
-            all_labels.extend([labels.cpu().numpy() for labels in gathered_labels])
-        
-        logger.log(f"created {len(all_samples) * args.batch_size} samples")
+        for i in range(args.batch_size):
+            path = os.path.join(logger.get_dir(), args.corruption, str(args.severity), filename[i].split('/')[0])
+            os.makedirs(path, exist_ok=True)
+            out_path = os.path.join(path, filename[i].split('/')[1])
 
-    # 合并所有样本
-    arr = np.concatenate(all_samples, axis=0)
-    arr = arr[: args.num_samples]
-    
-    if dist.get_rank() == 0:
-        shape_str = "x".join([str(x) for x in arr.shape])
-        
-        # ✅ 保存为.npy格式（单个文件）
-        out_path = os.path.join(logger.get_dir(), f"eeg_samples_{shape_str}.npy")
-        logger.log(f"saving samples to {out_path}")
-        logger.log(f"sample shape: {arr.shape}")  # (num_samples, 22, 64, 64)
-        logger.log(f"sample range: [{arr.min():.4f}, {arr.max():.4f}]")
-        np.save(out_path, arr)
-        
-        # 如果有标签，单独保存
-        if args.class_cond:
-            label_arr = np.concatenate(all_labels, axis=0)
-            label_arr = label_arr[: args.num_samples]
-            label_path = os.path.join(logger.get_dir(), f"eeg_labels_{args.num_samples}.npy")
-            logger.log(f"saving labels to {label_path}")
-            np.save(label_path, label_arr)
+            utils.save_image(
+                sample[i].unsqueeze(0),
+                out_path,
+                nrow=1,
+                normalize=True,
+                range=(-1, 1),
+            )
+
+        count += 1
+        logger.log(f"created {count * args.batch_size * dist_util.get_world_size()} samples")
 
     dist.barrier()
     logger.log("sampling complete")
@@ -107,11 +120,18 @@ def main():
 def create_argparser():
     defaults = dict(
         clip_denoised=True,
-        num_samples=1000,
-        batch_size=16,
+        num_samples=10000,
+        batch_size=4,
+        D=32, # scaling factor
+        N=50,
+        scale=1,
         use_ddim=False,
+        base_samples="",
         model_path="",
-        in_channels=22,  # ✅ EEG通道数
+        save_dir="",
+        save_latents=False,
+        corruption="shot_noise",
+        severity=5,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()
@@ -121,4 +141,3 @@ def create_argparser():
 
 if __name__ == "__main__":
     main()
-

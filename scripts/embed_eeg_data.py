@@ -5,6 +5,7 @@
 import numpy as np
 import torch
 import os
+import argparse
 
 
 class DelayEmbedder:
@@ -62,19 +63,19 @@ class DelayEmbedder:
         return x_image
 
 
-def embed_eeg_data(data_dir="../datasets/eegdata/bci2a", embedding_size=64, delay=15):
+def process_single_dataset(data_path, output_path, embedding_size=64, delay=15):
     """
-    将train_data.npy通过DelayEmbedder转换为图像格式
+    处理单个数据集文件
     
     Args:
-        data_dir: 数据目录
+        data_path: 输入数据路径
+        output_path: 输出数据路径
         embedding_size: embedding维度，默认64
         delay: delay参数，默认15
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # 加载数据
-    data_path = os.path.join(data_dir, "train_data.npy")
     data = np.load(data_path)  # (trials, channels, timepoints)
     
     print(f"原始数据shape: {data.shape}")
@@ -97,7 +98,7 @@ def embed_eeg_data(data_dir="../datasets/eegdata/bci2a", embedding_size=64, dela
         embedded_data.append(embedded_batch.cpu().numpy())
         
         if (i // batch_size + 1) % 10 == 0:
-            print(f"处理进度: {i+len(batch)}/{len(data)}")
+            print(f"  处理进度: {i+len(batch)}/{len(data)}")
     
     # 合并结果
     embedded_data = np.concatenate(embedded_data, axis=0)
@@ -105,12 +106,123 @@ def embed_eeg_data(data_dir="../datasets/eegdata/bci2a", embedding_size=64, dela
     print(f"转换后数据shape: {embedded_data.shape}")
     
     # 保存
-    output_path = os.path.join(data_dir, "train_data_embedded.npy")
     np.save(output_path, embedded_data)
     
     print(f"保存到: {output_path}")
+    
+    return embedded_data.shape
+
+
+def embed_eeg_data(data_dir="../datasets/eegdata/bci2a", subject_dir=None, embedding_size=64, delay=15):
+    """
+    将train_data.npy和test_data.npy通过DelayEmbedder转换为图像格式
+    
+    Args:
+        data_dir: 数据基础目录
+        subject_dir: 受试者子目录名（例如 "sub1357"），如果为 None 则直接使用 data_dir
+        embedding_size: embedding维度，默认64
+        delay: delay参数，默认15
+    """
+    # 确定实际数据目录
+    if subject_dir:
+        actual_dir = os.path.join(data_dir, subject_dir)
+    else:
+        actual_dir = data_dir
+    
+    print("="*80)
+    print("EEG 数据嵌入转换")
+    print("="*80)
+    print(f"数据目录: {actual_dir}\n")
+    
+    # 处理训练集
+    print("【处理训练集】")
+    train_data_path = os.path.join(actual_dir, "train_data.npy")
+    train_output_path = os.path.join(actual_dir, "train_data_embedded.npy")
+    
+    if os.path.exists(train_data_path):
+        train_shape = process_single_dataset(train_data_path, train_output_path, embedding_size, delay)
+    else:
+        print(f"⚠️  警告: 找不到训练数据文件 {train_data_path}")
+        train_shape = None
+    
+    # 处理测试集
+    print("\n【处理测试集】")
+    test_data_path = os.path.join(actual_dir, "test_data.npy")
+    test_output_path = os.path.join(actual_dir, "test_data_embedded.npy")
+    
+    if os.path.exists(test_data_path):
+        test_shape = process_single_dataset(test_data_path, test_output_path, embedding_size, delay)
+    else:
+        print(f"⚠️  警告: 找不到测试数据文件 {test_data_path}")
+        test_shape = None
+    
+    # 打印汇总
+    print("\n" + "="*80)
+    print("数据嵌入转换完成！")
+    print("="*80)
+    if train_shape:
+        print(f"训练集: {train_shape}")
+    if test_shape:
+        print(f"测试集: {test_shape}")
+    print(f"保存目录: {actual_dir}")
+    print("="*80)
 
 
 if __name__ == "__main__":
-    embed_eeg_data()
+    parser = argparse.ArgumentParser(
+        description="将 EEG 时间序列数据转换为图像格式",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+使用示例:
+  # 处理默认目录的数据
+  python embed_eeg_data.py
+  
+  # 处理指定受试者目录的数据 (例如 sub1357)
+  python embed_eeg_data.py --subject_dir sub1357
+  
+  # 指定基础目录和受试者目录
+  python embed_eeg_data.py --data_dir datasets/eegdata/bci2a --subject_dir sub34
+  
+  # 自定义嵌入参数
+  python embed_eeg_data.py --subject_dir sub1357 --embedding_size 64 --delay 15
+        """
+    )
+    
+    parser.add_argument(
+        '--data_dir', '-d',
+        type=str,
+        default='datasets/eegdata/bci2a',
+        help='数据基础目录（默认: datasets/eegdata/bci2a）'
+    )
+    
+    parser.add_argument(
+        '--subject_dir', '-s',
+        type=str,
+        default=None,
+        help='受试者子目录名（例如: sub1357），如果不指定则直接使用 data_dir'
+    )
+    
+    parser.add_argument(
+        '--embedding_size', '-e',
+        type=int,
+        default=64,
+        help='嵌入维度（默认: 64）'
+    )
+    
+    parser.add_argument(
+        '--delay',
+        type=int,
+        default=15,
+        help='时间延迟步长（默认: 15）'
+    )
+    
+    args = parser.parse_args()
+    
+    # 执行嵌入转换
+    embed_eeg_data(
+        data_dir=args.data_dir,
+        subject_dir=args.subject_dir,
+        embedding_size=args.embedding_size,
+        delay=args.delay
+    )
 

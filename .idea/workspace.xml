@@ -6,7 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="6d49380b-100a-41f2-9d1d-963f30a18444" name="更改" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/run_eeg_pipeline.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/run_eeg_pipeline.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/eeg_sample.py" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/eeg_sample.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -15,6 +15,9 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="PerforceDirect.Settings">
+    <option name="CHARSET" value="无" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 5
@@ -55,7 +58,7 @@
       <option name="presentableId" value="Default" />
       <updated>1760449139977</updated>
       <workItem from="1760449141037" duration="2178000" />
-      <workItem from="1760495168661" duration="762000" />
+      <workItem from="1760495168661" duration="2612000" />
     </task>
     <servers />
   </component>
