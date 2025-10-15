@@ -338,7 +338,7 @@ def main():
                        default='/home/xyr/workspace/testeeg/logs',
                        help='模型目录路径')
     parser.add_argument('--output_file', type=str,
-                       default='evaluation_results.json',
+                       default='/home/xyr/workspace/testeeg/logs/evaluation_results.json',
                        help='结果输出文件')
     
     # 评估参数

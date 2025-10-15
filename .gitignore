@@ -3,3 +3,5 @@ __pycache__/
 classify_image_graph_def.pb
 
 datasets/eegdata/
+
+*.png
