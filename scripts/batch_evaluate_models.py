@@ -351,8 +351,13 @@ def main():
     # 评估参数
     parser.add_argument('--num_eval_samples', type=int, default=None,
                        help='用于评估的样本数量')
-    parser.add_argument('--batch_size', type=int, default=16,
+    parser.add_argument('--batch_size', type=int, default=64,
                        help='批次大小')
+    parser.add_argument('--model_type', type=str, default='all',
+                       choices=['ema', 'model', 'all'],
+                       help='评估模型类型: ema(仅EMA模型), model(仅普通模型), all(两者都评估)')
+    parser.add_argument('--timestep_respacing', type=str, default='',
+                       help='采样步数重采样，如"100"表示用100步代替1000步，可大幅加速。留空则使用全部步数')
     
     # 模型参数（需要与训练时一致）
     parser.add_argument('--image_size', type=int, default=64,
@@ -394,14 +399,26 @@ def main():
     test_data = load_test_data(args.test_data_path)
     
     # 查找所有 .pt 模型文件
-    model_files = glob.glob(os.path.join(args.model_dir, '**/*.pt'), recursive=True)
+    all_files = glob.glob(os.path.join(args.model_dir, '**/*.pt'), recursive=True)
+    
+    # 过滤掉优化器文件（opt*.pt）
+    model_files = [f for f in all_files if not os.path.basename(f).startswith('opt')]
+    
+    # 根据 model_type 参数进一步过滤
+    if args.model_type == 'ema':
+        model_files = [f for f in model_files if 'ema' in os.path.basename(f).lower()]
+    elif args.model_type == 'model':
+        model_files = [f for f in model_files if 'ema' not in os.path.basename(f).lower()]
+    # args.model_type == 'all' 时不需要额外过滤
+    
     model_files.sort()
     
     if len(model_files) == 0:
-        print(f"错误: 在 {args.model_dir} 中未找到任何 .pt 模型文件")
+        print(f"错误: 在 {args.model_dir} 中未找到符合条件的模型文件")
+        print(f"  模型类型过滤: {args.model_type}")
         return
     
-    print(f"\n找到 {len(model_files)} 个模型文件:")
+    print(f"\n找到 {len(model_files)} 个模型文件 (model_type={args.model_type}):")
     for mf in model_files:
         print(f"  - {mf}")
     

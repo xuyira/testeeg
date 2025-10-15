@@ -36,7 +36,7 @@ def prepare_bci2a_data(data_dir="../datasets/eegdata/bci2a", subject_ids=None, r
     all_test_labels = []
     
     print(f"准备处理的受试者: {subject_ids}")
-    print(f"划分方式: {'80/20 重新划分' if resplit else '使用原始训练/测试划分'}")
+    print(f"划分方式: {'重新划分' if resplit else '使用原始训练/测试划分'}")
     print(f"输出目录: {output_dir}\n")
     
     for subject_id in subject_ids:
@@ -77,15 +77,15 @@ def prepare_bci2a_data(data_dir="../datasets/eegdata/bci2a", subject_ids=None, r
         all_labels_combined = all_labels_combined[indices]
         
         # 80/20 划分
-        split_idx = int(len(all_data_combined) * 0.8)
+        split_idx = int(len(all_data_combined) * 0.9)
         train_data_combined = all_data_combined[:split_idx]
         train_labels_combined = all_labels_combined[:split_idx]
         test_data_combined = all_data_combined[split_idx:]
         test_labels_combined = all_labels_combined[split_idx:]
         
-        print(f"按 80/20 划分:")
-        print(f"  训练集: {len(train_data_combined)} 样本 (80%)")
-        print(f"  测试集: {len(test_data_combined)} 样本 (20%)")
+        print(f"重新划分:")
+        print(f"  训练集: {len(train_data_combined)} 样本 ")
+        print(f"  测试集: {len(test_data_combined)} 样本 ")
     else:
         # 拼接训练数据
         train_data_combined = np.concatenate(all_train_data, axis=0)
@@ -163,7 +163,7 @@ if __name__ == "__main__":
   # 处理指定受试者 (3 和 4)，使用原始划分 → 保存到 sub34/
   python prepare_eeg_data.py --subjects 3,4
   
-  # 处理受试者 3,4，使用 80/20 重新划分 → 保存到 resub34/
+  # 处理受试者 3,4，重新划分 → 保存到 resub34/
   python prepare_eeg_data.py --subjects 3,4 --resplit
   
   # 处理受试者范围 (1 到 6)
@@ -194,7 +194,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '--resplit', '-r',
         action='store_true',
-        help='重新划分数据集为 80%% 训练 / 20%% 测试（默认使用原始划分，保存到 sub* 目录；使用此选项保存到 resub* 目录）'
+        help='重新划分数据集（默认使用原始划分，保存到 sub* 目录；使用此选项保存到 resub* 目录）'
     )
     
     args = parser.parse_args()
