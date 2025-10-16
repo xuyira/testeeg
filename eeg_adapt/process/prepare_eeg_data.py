@@ -77,16 +77,38 @@ def prepare_bci2a_data(data_dir="../datasets/eegdata/bci2a", subject_ids=None, r
         all_data_combined = all_data_combined[indices]
         all_labels_combined = all_labels_combined[indices]
         
-        # 按指定比例划分
-        split_idx = int(len(all_data_combined) * train_ratio)
-        train_data_combined = all_data_combined[:split_idx]
-        train_labels_combined = all_labels_combined[:split_idx]
-        test_data_combined = all_data_combined[split_idx:]
-        test_labels_combined = all_labels_combined[split_idx:]
-        
-        print(f"重新划分 ({int(train_ratio*100)}/{int((1-train_ratio)*100)}):")
-        print(f"  训练集: {len(train_data_combined)} 样本 ({len(train_data_combined)/len(all_data_combined)*100:.1f}%)")
-        print(f"  测试集: {len(test_data_combined)} 样本 ({len(test_data_combined)/len(all_data_combined)*100:.1f}%)")
+        # 检查特殊情况
+        if train_ratio == 1.0:
+            # 全部作为训练集
+            train_data_combined = all_data_combined
+            train_labels_combined = all_labels_combined
+            test_data_combined = None
+            test_labels_combined = None
+            
+            print(f"使用全部数据作为训练集 (100%):")
+            print(f"  训练集: {len(train_data_combined)} 样本")
+            print(f"  测试集: 无")
+        elif train_ratio == 0.0:
+            # 全部作为测试集
+            train_data_combined = None
+            train_labels_combined = None
+            test_data_combined = all_data_combined
+            test_labels_combined = all_labels_combined
+            
+            print(f"使用全部数据作为测试集 (100%):")
+            print(f"  训练集: 无")
+            print(f"  测试集: {len(test_data_combined)} 样本")
+        else:
+            # 按指定比例划分
+            split_idx = int(len(all_data_combined) * train_ratio)
+            train_data_combined = all_data_combined[:split_idx]
+            train_labels_combined = all_labels_combined[:split_idx]
+            test_data_combined = all_data_combined[split_idx:]
+            test_labels_combined = all_labels_combined[split_idx:]
+            
+            print(f"重新划分 ({int(train_ratio*100)}/{int((1-train_ratio)*100)}):")
+            print(f"  训练集: {len(train_data_combined)} 样本 ({len(train_data_combined)/len(all_data_combined)*100:.1f}%)")
+            print(f"  测试集: {len(test_data_combined)} 样本 ({len(test_data_combined)/len(all_data_combined)*100:.1f}%)")
     else:
         # 拼接训练数据
         train_data_combined = np.concatenate(all_train_data, axis=0)
@@ -97,29 +119,42 @@ def prepare_bci2a_data(data_dir="../datasets/eegdata/bci2a", subject_ids=None, r
         test_labels_combined = np.concatenate(all_test_labels, axis=0)
     
     # 去掉多余的维度: (N, 1, 22, 1000) -> (N, 22, 1000)
-    if train_data_combined.ndim == 4 and train_data_combined.shape[1] == 1:
+    if train_data_combined is not None and train_data_combined.ndim == 4 and train_data_combined.shape[1] == 1:
         train_data_combined = train_data_combined.squeeze(1)
         print(f"训练数据去掉维度1后的shape: {train_data_combined.shape}")
     
-    if test_data_combined.ndim == 4 and test_data_combined.shape[1] == 1:
+    if test_data_combined is not None and test_data_combined.ndim == 4 and test_data_combined.shape[1] == 1:
         test_data_combined = test_data_combined.squeeze(1)
         print(f"测试数据去掉维度1后的shape: {test_data_combined.shape}")
     
-    # 保存训练数据到子目录
-    np.save(os.path.join(output_dir, "train_data.npy"), train_data_combined)
-    np.save(os.path.join(output_dir, "train_label.npy"), train_labels_combined)
-    
-    # 保存测试数据到子目录
-    np.save(os.path.join(output_dir, "test_data.npy"), test_data_combined)
-    np.save(os.path.join(output_dir, "test_label.npy"), test_labels_combined)
-    
     print(f"\n数据准备完成！")
-    print(f"\n训练集:")
-    print(f"  train_data.npy shape: {train_data_combined.shape}")
-    print(f"  train_label.npy shape: {train_labels_combined.shape}")
-    print(f"\n测试集:")
-    print(f"  test_data.npy shape: {test_data_combined.shape}")
-    print(f"  test_label.npy shape: {test_labels_combined.shape}")
+    
+    # 只在有训练数据时才保存
+    if train_data_combined is not None:
+        # 保存训练数据到子目录
+        np.save(os.path.join(output_dir, "train_data.npy"), train_data_combined)
+        np.save(os.path.join(output_dir, "train_label.npy"), train_labels_combined)
+        
+        print(f"\n训练集:")
+        print(f"  train_data.npy shape: {train_data_combined.shape}")
+        print(f"  train_label.npy shape: {train_labels_combined.shape}")
+    else:
+        print(f"\n训练集:")
+        print(f"  无（全部数据用作测试集）")
+    
+    # 只在有测试数据时才保存
+    if test_data_combined is not None:
+        # 保存测试数据到子目录
+        np.save(os.path.join(output_dir, "test_data.npy"), test_data_combined)
+        np.save(os.path.join(output_dir, "test_label.npy"), test_labels_combined)
+        
+        print(f"\n测试集:")
+        print(f"  test_data.npy shape: {test_data_combined.shape}")
+        print(f"  test_label.npy shape: {test_labels_combined.shape}")
+    else:
+        print(f"\n测试集:")
+        print(f"  无（全部数据用作训练集）")
+    
     print(f"\n保存路径: {output_dir}")
     
     return output_dir  # 返回输出目录路径
@@ -170,6 +205,12 @@ if __name__ == "__main__":
   # 处理受试者 3,4，重新划分为80/20 → 保存到 resub34/
   python prepare_eeg_data.py --subjects 3,4 --resplit --train_ratio 0.8
   
+  # 处理受试者 3,4，全部作为训练集（不生成测试集）→ 保存到 resub34/
+  python prepare_eeg_data.py --subjects 3,4 --resplit --train_ratio 1.0
+  
+  # 处理受试者 3,4，全部作为测试集（不生成训练集）→ 保存到 resub34/
+  python prepare_eeg_data.py --subjects 3,4 --resplit --train_ratio 0.0
+  
   # 处理受试者范围 (1 到 6)
   python prepare_eeg_data.py --subjects 1-6
   
@@ -205,14 +246,14 @@ if __name__ == "__main__":
         '--train_ratio', '-t',
         type=float,
         default=0.9,
-        help='训练集比例（默认: 0.9，即90/10划分），仅在使用 --resplit 时生效'
+        help='训练集比例（默认: 0.9，即90/10划分；0=全部测试集，1.0=全部训练集），仅在使用 --resplit 时生效'
     )
     
     args = parser.parse_args()
     
     # 验证train_ratio的范围
-    if not 0 < args.train_ratio < 1:
-        parser.error("train_ratio 必须在 0 和 1 之间")
+    if not 0 <= args.train_ratio <= 1:
+        parser.error("train_ratio 必须在 0 和 1 之间（0=全部测试集，1=全部训练集）")
     
     # 解析受试者编号
     subject_ids = parse_subject_ids(args.subjects)
