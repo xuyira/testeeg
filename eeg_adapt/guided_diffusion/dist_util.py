@@ -24,7 +24,7 @@ def setup_dist():
     """
     if dist.is_initialized():
         return
-    os.environ["CUDA_VISIBLE_DEVICES"] = f"{MPI.COMM_WORLD.Get_rank() % GPUS_PER_NODE}"
+    # os.environ["CUDA_VISIBLE_DEVICES"] = f"{MPI.COMM_WORLD.Get_rank() % GPUS_PER_NODE}"
 
     comm = MPI.COMM_WORLD
     backend = "gloo" if not th.cuda.is_available() else "nccl"
@@ -47,7 +47,7 @@ def dev():
     Get the device to use for torch.distributed.
     """
     if th.cuda.is_available():
-        return th.device(f"cuda")
+        return th.device(f"cuda:{MPI.COMM_WORLD.rank}")
     return th.device("cpu")
 
 
@@ -91,3 +91,16 @@ def _find_free_port():
         return s.getsockname()[1]
     finally:
         s.close()
+
+def get_rank():
+    return str(MPI.COMM_WORLD.rank)
+
+
+def get_world_size():
+    return MPI.COMM_WORLD.size
+    
+    
+def all_reduce(x, op='AVG'):
+    all_sum = MPI.COMM_WORLD.reduce(x, root=0, op=MPI.SUM)
+    ans /= MPI.COMM_WORLD.size if op=='AVG' else 1
+    return ans

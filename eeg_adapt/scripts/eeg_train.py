@@ -1,21 +1,19 @@
 """
-Train a super-resolution model.
+Train a diffusion model on EEG data.
 """
 
 import argparse
 
-import torch.nn.functional as F
-
-from guided_diffusion import dist_util, logger
-from guided_diffusion.image_datasets import load_data
-from guided_diffusion.resample import create_named_schedule_sampler
-from guided_diffusion.script_util import (
-    sr_model_and_diffusion_defaults,
-    sr_create_model_and_diffusion,
+from eeg_adapt.guided_diffusion import dist_util, logger
+from eeg_adapt.guided_diffusion.eeg_datasets import load_eeg_data
+from eeg_adapt.guided_diffusion.resample import create_named_schedule_sampler
+from eeg_adapt.guided_diffusion.script_util import (
+    model_and_diffusion_defaults,
+    create_model_and_diffusion,
     args_to_dict,
     add_dict_to_argparser,
 )
-from guided_diffusion.train_util import TrainLoop
+from eeg_adapt.guided_diffusion.train_util import TrainLoop
 
 
 def main():
@@ -24,19 +22,17 @@ def main():
     dist_util.setup_dist()
     logger.configure()
 
-    logger.log("creating model...")
-    model, diffusion = sr_create_model_and_diffusion(
-        **args_to_dict(args, sr_model_and_diffusion_defaults().keys())
+    logger.log("creating model and diffusion...")
+    model, diffusion = create_model_and_diffusion(
+        **args_to_dict(args, model_and_diffusion_defaults().keys())
     )
     model.to(dist_util.dev())
     schedule_sampler = create_named_schedule_sampler(args.schedule_sampler, diffusion)
 
     logger.log("creating data loader...")
-    data = load_superres_data(
-        args.data_dir,
-        args.batch_size,
-        large_size=args.large_size,
-        small_size=args.small_size,
+    data = load_eeg_data(
+        data_dir=args.data_dir,
+        batch_size=args.batch_size,
         class_cond=args.class_cond,
     )
 
@@ -60,18 +56,6 @@ def main():
     ).run_loop()
 
 
-def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=False):
-    data = load_data(
-        data_dir=data_dir,
-        batch_size=batch_size,
-        image_size=large_size,
-        class_cond=class_cond,
-    )
-    for large_batch, model_kwargs in data:
-        model_kwargs["low_res"] = F.interpolate(large_batch, small_size, mode="area")
-        yield large_batch, model_kwargs
-
-
 def create_argparser():
     defaults = dict(
         data_dir="",
@@ -80,15 +64,17 @@ def create_argparser():
         weight_decay=0.0,
         lr_anneal_steps=0,
         batch_size=1,
-        microbatch=-1,
-        ema_rate="0.9999",
+        microbatch=-1,  # -1 disables microbatches
+        ema_rate="0.9999",  # comma-separated list of EMA values
         log_interval=10,
-        save_interval=10000,
+        save_interval=500,
         resume_checkpoint="",
         use_fp16=False,
         fp16_scale_growth=1e-3,
     )
-    defaults.update(sr_model_and_diffusion_defaults())
+    defaults.update(model_and_diffusion_defaults())
+    # 为EEG数据设置22个输入通道（而不是RGB图像的3个通道）
+    defaults["in_channels"] = 22
     parser = argparse.ArgumentParser()
     add_dict_to_argparser(parser, defaults)
     return parser

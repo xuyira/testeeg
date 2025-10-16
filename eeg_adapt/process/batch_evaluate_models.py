@@ -20,9 +20,9 @@ project_root = os.path.dirname(script_dir)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# 导入 guided_diffusion 模块
-from guided_diffusion import dist_util
-from guided_diffusion.script_util import (
+# 导入 eeg_adapt.guided_diffusion 模块
+from eeg_adapt.guided_diffusion import dist_util
+from eeg_adapt.guided_diffusion.script_util import (
     model_and_diffusion_defaults,
     create_model_and_diffusion,
     args_to_dict,
