@@ -13,9 +13,6 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="PerforceDirect.Settings">
-    <option name="CHARSET" value="无" />
-  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 5
 }</component>
@@ -56,6 +53,7 @@
       <updated>1760449139977</updated>
       <workItem from="1760449141037" duration="2178000" />
       <workItem from="1760495168661" duration="2612000" />
+      <workItem from="1760535670884" duration="667000" />
     </task>
     <servers />
   </component>

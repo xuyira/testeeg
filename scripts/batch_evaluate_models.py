@@ -381,7 +381,7 @@ def main():
     defaults = model_and_diffusion_defaults()
     for k, v in defaults.items():
         if k not in ['image_size', 'in_channels', 'num_channels', 'num_res_blocks', 
-                     'learn_sigma', 'class_cond', 'use_fp16', 'attention_resolutions']:
+                     'learn_sigma', 'class_cond', 'use_fp16', 'attention_resolutions', 'timestep_respacing']:
             if isinstance(v, bool):
                 parser.add_argument(f'--{k}', action='store_true' if not v else 'store_false',
                                   default=v, help=f'{k} (default: {v})')
