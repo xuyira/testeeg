@@ -339,7 +339,7 @@ def main():
     
     # 数据相关参数
     parser.add_argument('--test_data_path', type=str, 
-                       default='datasets/eegdata/bci2a/test_data_embedded.npy',
+                       default='eeg_adapt/datasets/eegdata/bci2a/test_data_embedded.npy',
                        help='测试数据路径')
     parser.add_argument('--model_dir', type=str,
                        default='/home/xyr/workspace/testeeg/logs',

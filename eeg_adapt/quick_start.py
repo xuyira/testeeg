@@ -16,7 +16,7 @@ def quick_example_1():
     print("=" * 60)
     
     # 加载你的 EEG 数据 (trials, channels, timepoints)
-    test_data = np.load("datasets/eegdata/bci2a/resub1234567/test_data.npy")
+    test_data = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/test_data.npy")
     
     # 一行代码生成！
     original, generated = generate_eeg_signals(
@@ -44,8 +44,8 @@ def quick_example_2():
     generator = EEGGenerator(model_path="models/ema_0.9999_200000.pt")
     
     # 可以多次使用
-    test_data_1 = np.load("datasets/eegdata/bci2a/resub1234567/test_data.npy")
-    test_data_2 = np.load("datasets/eegdata/bci2a/resub8/test_data.npy")
+    test_data_1 = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/test_data.npy")
+    test_data_2 = np.load("eeg_adapt/datasets/eegdata/bci2a/resub8/test_data.npy")
     
     # 生成 1
     print("\n生成数据集 1...")
@@ -70,8 +70,8 @@ def quick_example_3():
     print("=" * 60)
     
     # 加载训练数据
-    train_data = np.load("datasets/eegdata/bci2a/resub1234567/train_data.npy")
-    train_labels = np.load("datasets/eegdata/bci2a/resub1234567/train_label.npy")
+    train_data = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/train_data.npy")
+    train_labels = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/train_label.npy")
     
     print(f"原始训练数据: {train_data.shape}")
     
@@ -100,7 +100,7 @@ def quick_example_4():
     
     generator = EEGGenerator(model_path="models/ema_0.9999_200000.pt")
     
-    large_data = np.load("datasets/eegdata/bci2a/resub1234567/test_data.npy")
+    large_data = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/test_data.npy")
     
     all_generated = []
     
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("\n请确保:")
     print("  1. 模型文件存在: models/ema_0.9999_200000.pt")
-    print("  2. 数据文件存在: datasets/eegdata/bci2a/...")
+    print("  2. 数据文件存在: eeg_adapt/datasets/eegdata/bci2a/...")
     print("\n" + "=" * 60)
     
     input("\n按 Enter 键开始运行示例...")

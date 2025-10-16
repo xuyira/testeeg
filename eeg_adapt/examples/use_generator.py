@@ -20,7 +20,7 @@ def example_1_basic_usage():
     print("=" * 80)
     
     # 加载测试数据
-    test_data = np.load("datasets/eegdata/bci2a/resub1234567/test_data.npy")
+    test_data = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/test_data.npy")
     print(f"测试数据形状: {test_data.shape}")
     
     # 使用便捷函数生成
@@ -53,8 +53,8 @@ def example_2_class_usage():
     )
     
     # 加载多个数据集并生成
-    test_data_1 = np.load("datasets/eegdata/bci2a/resub1234567/test_data.npy")
-    test_data_2 = np.load("datasets/eegdata/bci2a/resub8/test_data.npy")
+    test_data_1 = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/test_data.npy")
+    test_data_2 = np.load("eeg_adapt/datasets/eegdata/bci2a/resub8/test_data.npy")
     
     # 生成 1
     print("\n生成数据集 1...")
@@ -79,7 +79,7 @@ def example_3_batch_generation():
         scale=1.0
     )
     
-    test_data = np.load("datasets/eegdata/bci2a/resub1234567/test_data.npy")
+    test_data = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/test_data.npy")
     
     # 批量生成并处理
     all_originals = []
@@ -122,10 +122,10 @@ def example_4_downstream_classification():
     )
     
     # 加载训练和测试数据
-    train_data = np.load("datasets/eegdata/bci2a/resub1234567/train_data.npy")
-    train_labels = np.load("datasets/eegdata/bci2a/resub1234567/train_label.npy")
-    test_data = np.load("datasets/eegdata/bci2a/resub1234567/test_data.npy")
-    test_labels = np.load("datasets/eegdata/bci2a/resub1234567/test_label.npy")
+    train_data = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/train_data.npy")
+    train_labels = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/train_label.npy")
+    test_data = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/test_data.npy")
+    test_labels = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/test_label.npy")
     
     # 生成增强数据
     print("\n生成训练数据增强...")
@@ -165,7 +165,7 @@ def example_5_different_guidance_strengths():
     print("示例 5: 比较不同引导强度的效果")
     print("=" * 80)
     
-    test_data = np.load("datasets/eegdata/bci2a/resub1234567/test_data.npy")[:10]  # 只用10个样本测试
+    test_data = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/test_data.npy")[:10]  # 只用10个样本测试
     
     configurations = [
         {"D": 8, "scale": 0.5, "name": "弱引导"},
@@ -228,8 +228,8 @@ def example_6_integrate_with_pytorch():
             )
     
     # 加载数据
-    train_data = np.load("datasets/eegdata/bci2a/resub1234567/train_data.npy")
-    train_labels = np.load("datasets/eegdata/bci2a/resub1234567/train_label.npy")
+    train_data = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/train_data.npy")
+    train_labels = np.load("eeg_adapt/datasets/eegdata/bci2a/resub1234567/train_label.npy")
     
     # 生成增强数据
     generator = EEGGenerator(

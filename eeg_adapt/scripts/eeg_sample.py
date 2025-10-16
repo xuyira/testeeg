@@ -368,7 +368,7 @@ def create_argparser():
         epilog="""
   # 基本使用 (标准频率引导)
   python eeg_sample.py --model_path models/ema_0.9999_200000.pt \\
-                       --eeg_data_path datasets/eegdata/bci2a/resub1234567/test_data.npy \\
+                       --eeg_data_path eeg_adapt/datasets/eegdata/bci2a/resub1234567/test_data.npy \\
                        --save_dir ./output
         """
     )

@@ -113,7 +113,7 @@ def process_single_dataset(data_path, output_path, embedding_size=64, delay=15):
     return embedded_data.shape
 
 
-def embed_eeg_data(data_dir="../datasets/eegdata/bci2a", subject_dir=None, embedding_size=64, delay=15):
+def embed_eeg_data(data_dir="eeg_adapt/datasets/eegdata/bci2a", subject_dir=None, embedding_size=64, delay=15):
     """
     将train_data.npy和test_data.npy通过DelayEmbedder转换为图像格式
     
@@ -191,8 +191,8 @@ if __name__ == "__main__":
     parser.add_argument(
         '--data_dir', '-d',
         type=str,
-        default='datasets/eegdata/bci2a',
-        help='数据基础目录（默认: datasets/eegdata/bci2a）'
+        default='eeg_adapt/datasets/eegdata/bci2a',
+        help='数据基础目录（默认: eeg_adapt/datasets/eegdata/bci2a）'
     )
     
     parser.add_argument(

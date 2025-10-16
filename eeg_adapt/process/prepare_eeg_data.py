@@ -6,7 +6,7 @@ import numpy as np
 import os
 import argparse
 
-def prepare_bci2a_data(data_dir="../datasets/eegdata/bci2a", subject_ids=None, resplit=False, train_ratio=0.9):
+def prepare_bci2a_data(data_dir="eeg_adapt/datasets/eegdata/bci2a", subject_ids=None, resplit=False, train_ratio=0.9):
     """
     分别合并指定受试者的train_data_original和test_data
     保存为独立的train和test文件到特定子目录
@@ -232,8 +232,8 @@ if __name__ == "__main__":
     parser.add_argument(
         '--data_dir', '-d',
         type=str,
-        default='datasets/eegdata/bci2a',
-        help='数据目录路径（默认: datasets/eegdata/bci2a）'
+        default='eeg_adapt/datasets/eegdata/bci2a',
+        help='数据目录路径（默认: eeg_adapt/datasets/eegdata/bci2a）'
     )
     
     parser.add_argument(
