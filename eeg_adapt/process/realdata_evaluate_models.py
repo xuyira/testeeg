@@ -277,9 +277,9 @@ if __name__ == "__main__":
     # 加载数据 - 原始形状应该是 (batch, 1000, 22)
     # 如果不是，请根据实际情况调整 transpose 参数
     print("加载数据...")
-    x_fake_np  = np.load('eeg_adapt/datasets/eegdata/bci2a/resub1234567/train_data.npy')
-    x_real1_np = np.load('eeg_adapt/datasets/eegdata/bci2a/resub8/test_data_gen.npy')
-    x_real2_np = np.load('eeg_adapt/datasets/eegdata/bci2a/resub8/test_data.npy')
+    x_fake_np  = np.load('eeg_adapt/datasets/eegdata/bci2a/subject1_train_data.npy')
+    x_real1_np = np.load('eeg_adapt/datasets/eegdata/bci2a/subject1_test_data.npy')
+    x_real2_np = np.load('eeg_adapt/datasets/eegdata/bci2a/subject2_test_data.npy')
     
     print(f"x_fake 形状: {x_fake_np.shape}")
     print(f"x_real1 形状: {x_real1_np.shape}")
