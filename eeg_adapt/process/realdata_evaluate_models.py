@@ -4,7 +4,13 @@
 
 功能：
 1. 边缘分布直方图损失（HistoLoss）
-2. Maximum Mean Discrepancy (MMD) - 使用高斯核的分布差异度量
+2. Maximum Mean Discrepancy (MMD) - 使用高斯核的分布差异度量（内存优化版本）
+
+特性：
+- ✅ 内存高效的核矩阵计算（使用 torch.cdist）
+- ✅ 支持多核混合（更鲁棒的 MMD 估计）
+- ✅ 支持无偏估计
+- ✅ 自动中位数启发式带宽选择
 
 使用示例：
     # 直接计算两个数据的 MMD
@@ -15,12 +21,15 @@
     x = torch.randn(100, 1000, 22)  # shape: (batch, seq_len, channels)
     y = torch.randn(100, 1000, 22)
     
-    # 计算 MMD
+    # 计算 MMD（使用默认的多核混合）
     mmd_value = compute_mmd(x, y)
     print(f"MMD: {mmd_value:.6f}")
     
     # 可选：使用单个核和指定的带宽
-    mmd_value = compute_mmd(x, y, sigma=1.0, use_multiple_kernels=False)
+    mmd_value = compute_mmd(x, y, sigmas=1.0, use_multiple_kernels=False)
+    
+    # 可选：使用无偏估计
+    mmd_value = compute_mmd(x, y, unbiased=True)
 """
 
 
@@ -101,93 +110,131 @@ class HistoLoss(Loss):
         return loss_componentwise
 
 
-def gaussian_kernel(x, y, sigma=None):
+def gaussian_kernel_matrix(x, y, sigma):
     """
-    计算高斯核函数 k(x, y) = exp(-||x - y||^2 / (2 * sigma^2))
-    
-    参数:
-        x: torch.Tensor, shape=(n, d)
-        y: torch.Tensor, shape=(m, d)
-        sigma: float, 核带宽参数，如果为 None 则自动选择
-    
-    返回:
-        K: torch.Tensor, shape=(n, m), 核矩阵
+    通过 pairwise squared distances 生成高斯核矩阵
+    x: (n, d)
+    y: (m, d)
+    sigma: float or tensor (标量)
+    返回 K: (n, m)
     """
-    x_size = x.shape[0]
-    y_size = y.shape[0]
-    dim = x.shape[1]
-    
-    # 计算 ||x - y||^2
-    x = x.unsqueeze(1)  # (n, 1, d)
-    y = y.unsqueeze(0)  # (1, m, d)
-    tiled_x = x.expand(x_size, y_size, dim)
-    tiled_y = y.expand(x_size, y_size, dim)
-    kernel_input = (tiled_x - tiled_y).pow(2).sum(2)
-    
-    # 自动选择带宽（中位数启发式）
-    if sigma is None:
-        # 使用中位数距离作为 sigma
-        sigma = torch.sqrt(torch.median(kernel_input[kernel_input > 0]))
-        if sigma == 0:
-            sigma = 1.0
-    
-    return torch.exp(-kernel_input / (2 * sigma ** 2))
+    # 使用 torch.cdist 更节省内存：返回 pairwise L2 距离
+    # cdist -> 距离，平方得到 squared distances
+    dists = torch.cdist(x, y, p=2.0)
+    sq_dists = dists.pow(2)
+    # 确保 sigma 是标量 tensor，在相同 device 上
+    if not torch.is_tensor(sigma):
+        sigma = torch.tensor(sigma, device=x.device, dtype=x.dtype)
+    denom = 2.0 * (sigma ** 2)
+    return torch.exp(-sq_dists / denom)
 
 
-def compute_mmd(x, y, sigma=None, use_multiple_kernels=True):
+def _estimate_sigma_median(x, y):
     """
-    计算 Maximum Mean Discrepancy (MMD)
-    
-    MMD^2(P, Q) = E[k(x, x')] - 2E[k(x, y)] + E[k(y, y')]
-    其中 x, x' ~ P, y, y' ~ Q
-    
-    参数:
-        x: torch.Tensor, shape=(n, d) 或 (n, seq_len, channels)
-        y: torch.Tensor, shape=(m, d) 或 (m, seq_len, channels)
-        sigma: float or list, 核带宽参数
-        use_multiple_kernels: bool, 是否使用多个核的组合
-    
-    返回:
-        mmd: float, MMD 值
+    基于 pairwise squared distance 的中位数启发式带宽选择（更稳健）
+    返回标量 sigma (>0)
     """
-    # 将数据展平为 (n, d) 格式
-    if x.dim() == 3:  # (batch, seq_len, channels)
+    # 计算一部分距离以避免 O(n*m) 内存爆炸：当样本大时可以采样
+    n, m = x.shape[0], y.shape[0]
+    max_pairs = 10000  # 控制用于 median 的样本数
+    # 采样索引
+    if n * m > max_pairs:
+        # 随机采样一些索引
+        idx_x = torch.randint(0, n, (int(max_pairs**0.5),), device=x.device)
+        idx_y = torch.randint(0, m, (int(max_pairs**0.5),), device=x.device)
+        xs = x[idx_x]
+        ys = y[idx_y]
+        d = torch.cdist(xs, ys, p=2.0).reshape(-1).pow(2)
+    else:
+        d = torch.cdist(x, y, p=2.0).reshape(-1).pow(2)
+    # 移除 0 与 nan
+    d = d[~torch.isnan(d)]
+    d = d[d > 0]
+    if d.numel() == 0:
+        return torch.tensor(1.0, device=x.device, dtype=x.dtype)
+    med = torch.median(d)
+    sigma = torch.sqrt(med)
+    # 如果 sigma 非常小或为0（修复：正确处理 tensor 比较）
+    if sigma.item() <= 0 or torch.isnan(sigma):
+        return torch.tensor(1.0, device=x.device, dtype=x.dtype)
+    return sigma
+
+
+def compute_mmd(x, y, sigmas=None, use_multiple_kernels=True, unbiased=False, return_tensor=False):
+    """
+    计算 MMD（默认返回标量 float）
+    x: (n, d) 或 (n, seq_len, ch)
+    y: (m, d) 或 (m, seq_len, ch)
+    sigmas: None 或 list/tuple 或 单个数值。如果 None 且 use_multiple_kernels False，会用 median heuristic。
+    use_multiple_kernels: 使用多尺度核（谱）平均
+    unbiased: 是否使用无偏估计（去掉自内积对角项）
+    return_tensor: 若为 True 返回 tensor（可用于反向传播），否则返回 float
+    """
+    # flatten 时间序列
+    if x.dim() == 3:
         x = x.reshape(x.shape[0], -1)
     if y.dim() == 3:
         y = y.reshape(y.shape[0], -1)
-    
+
     x = x.float()
     y = y.float()
-    
+
     if use_multiple_kernels:
-        # 使用多个核的组合（混合核技巧）
-        sigmas = [0.01, 0.1, 1, 10, 100] if sigma is None else sigma
-        if not isinstance(sigmas, list):
+        if sigmas is None:
+            # 常用多尺度核列表（可替换）
+            sigmas = [0.01, 0.1, 1.0, 10.0, 100.0]
+        elif not isinstance(sigmas, (list, tuple)):
             sigmas = [sigmas]
-        
-        mmd_value = 0.0
-        for s in sigmas:
-            # E[k(x, x')]
-            xx = gaussian_kernel(x, x, sigma=s)
-            # E[k(y, y')]
-            yy = gaussian_kernel(y, y, sigma=s)
-            # E[k(x, y)]
-            xy = gaussian_kernel(x, y, sigma=s)
-            
-            # MMD^2 = E[k(x,x')] - 2E[k(x,y)] + E[k(y,y')]
-            mmd_value += xx.mean() + yy.mean() - 2 * xy.mean()
-        
-        mmd_value = mmd_value / len(sigmas)
     else:
-        # 使用单个核
-        xx = gaussian_kernel(x, x, sigma=sigma)
-        yy = gaussian_kernel(y, y, sigma=sigma)
-        xy = gaussian_kernel(x, y, sigma=sigma)
-        
-        mmd_value = xx.mean() + yy.mean() - 2 * xy.mean()
-    
-    # 返回 MMD（而不是 MMD^2）
-    return torch.sqrt(torch.clamp(mmd_value, min=0.0)).item()
+        if sigmas is None:
+            # 单核时使用 median heuristic
+            sigma0 = _estimate_sigma_median(x, y)
+            sigmas = [sigma0]
+
+    mmd_total = torch.tensor(0.0, device=x.device, dtype=x.dtype)
+    for s in sigmas:
+        # 如果 s 是 None，使用估计
+        if s is None:
+            s = _estimate_sigma_median(x, y)
+        # 确保 s 为 tensor 在正确 device
+        if not torch.is_tensor(s):
+            s = torch.tensor(float(s), device=x.device, dtype=x.dtype)
+
+        Kxx = gaussian_kernel_matrix(x, x, s)
+        Kyy = gaussian_kernel_matrix(y, y, s)
+        Kxy = gaussian_kernel_matrix(x, y, s)
+
+        if unbiased:
+            # 无偏估计：去掉对角项
+            n = x.shape[0]
+            m = y.shape[0]
+            if n > 1:
+                sum_xx = (Kxx.sum() - Kxx.diag().sum()) / (n * (n - 1))
+            else:
+                sum_xx = torch.tensor(0.0, device=x.device, dtype=x.dtype)
+            if m > 1:
+                sum_yy = (Kyy.sum() - Kyy.diag().sum()) / (m * (m - 1))
+            else:
+                sum_yy = torch.tensor(0.0, device=x.device, dtype=x.dtype)
+            sum_xy = Kxy.mean()  # cross terms无需去对角
+            mmd_sq = sum_xx + sum_yy - 2.0 * sum_xy
+        else:
+            # 有偏估计（包括对角）
+            mmd_sq = Kxx.mean() + Kyy.mean() - 2.0 * Kxy.mean()
+
+        mmd_total += mmd_sq
+
+    mmd_total = mmd_total / len(sigmas)
+
+    # 修正数值小负值
+    mmd_total = torch.clamp(mmd_total, min=0.0)
+
+    mmd = torch.sqrt(mmd_total)
+
+    if return_tensor:
+        return mmd  # tensor，可用于反向传播
+    else:
+        return mmd.item()
 
 
 def compute_marginal_loss(x_fake, x_real):
