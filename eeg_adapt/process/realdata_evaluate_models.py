@@ -1,6 +1,26 @@
 """
 批量评估 EEG 扩散模型
-对指定目录下的所有 .pt 模型进行评估，使用边缘分布差异指标
+对指定目录下的所有 .pt 模型进行评估，使用边缘分布差异指标和 MMD
+
+功能：
+1. 边缘分布直方图损失（HistoLoss）
+2. Maximum Mean Discrepancy (MMD) - 使用高斯核的分布差异度量
+
+使用示例：
+    # 直接计算两个数据的 MMD
+    import torch
+    from realdata_evaluate_models import compute_mmd
+    
+    # 加载数据
+    x = torch.randn(100, 1000, 22)  # shape: (batch, seq_len, channels)
+    y = torch.randn(100, 1000, 22)
+    
+    # 计算 MMD
+    mmd_value = compute_mmd(x, y)
+    print(f"MMD: {mmd_value:.6f}")
+    
+    # 可选：使用单个核和指定的带宽
+    mmd_value = compute_mmd(x, y, sigma=1.0, use_multiple_kernels=False)
 """
 
 
@@ -81,6 +101,95 @@ class HistoLoss(Loss):
         return loss_componentwise
 
 
+def gaussian_kernel(x, y, sigma=None):
+    """
+    计算高斯核函数 k(x, y) = exp(-||x - y||^2 / (2 * sigma^2))
+    
+    参数:
+        x: torch.Tensor, shape=(n, d)
+        y: torch.Tensor, shape=(m, d)
+        sigma: float, 核带宽参数，如果为 None 则自动选择
+    
+    返回:
+        K: torch.Tensor, shape=(n, m), 核矩阵
+    """
+    x_size = x.shape[0]
+    y_size = y.shape[0]
+    dim = x.shape[1]
+    
+    # 计算 ||x - y||^2
+    x = x.unsqueeze(1)  # (n, 1, d)
+    y = y.unsqueeze(0)  # (1, m, d)
+    tiled_x = x.expand(x_size, y_size, dim)
+    tiled_y = y.expand(x_size, y_size, dim)
+    kernel_input = (tiled_x - tiled_y).pow(2).sum(2)
+    
+    # 自动选择带宽（中位数启发式）
+    if sigma is None:
+        # 使用中位数距离作为 sigma
+        sigma = torch.sqrt(torch.median(kernel_input[kernel_input > 0]))
+        if sigma == 0:
+            sigma = 1.0
+    
+    return torch.exp(-kernel_input / (2 * sigma ** 2))
+
+
+def compute_mmd(x, y, sigma=None, use_multiple_kernels=True):
+    """
+    计算 Maximum Mean Discrepancy (MMD)
+    
+    MMD^2(P, Q) = E[k(x, x')] - 2E[k(x, y)] + E[k(y, y')]
+    其中 x, x' ~ P, y, y' ~ Q
+    
+    参数:
+        x: torch.Tensor, shape=(n, d) 或 (n, seq_len, channels)
+        y: torch.Tensor, shape=(m, d) 或 (m, seq_len, channels)
+        sigma: float or list, 核带宽参数
+        use_multiple_kernels: bool, 是否使用多个核的组合
+    
+    返回:
+        mmd: float, MMD 值
+    """
+    # 将数据展平为 (n, d) 格式
+    if x.dim() == 3:  # (batch, seq_len, channels)
+        x = x.reshape(x.shape[0], -1)
+    if y.dim() == 3:
+        y = y.reshape(y.shape[0], -1)
+    
+    x = x.float()
+    y = y.float()
+    
+    if use_multiple_kernels:
+        # 使用多个核的组合（混合核技巧）
+        sigmas = [0.01, 0.1, 1, 10, 100] if sigma is None else sigma
+        if not isinstance(sigmas, list):
+            sigmas = [sigmas]
+        
+        mmd_value = 0.0
+        for s in sigmas:
+            # E[k(x, x')]
+            xx = gaussian_kernel(x, x, sigma=s)
+            # E[k(y, y')]
+            yy = gaussian_kernel(y, y, sigma=s)
+            # E[k(x, y)]
+            xy = gaussian_kernel(x, y, sigma=s)
+            
+            # MMD^2 = E[k(x,x')] - 2E[k(x,y)] + E[k(y,y')]
+            mmd_value += xx.mean() + yy.mean() - 2 * xy.mean()
+        
+        mmd_value = mmd_value / len(sigmas)
+    else:
+        # 使用单个核
+        xx = gaussian_kernel(x, x, sigma=sigma)
+        yy = gaussian_kernel(y, y, sigma=sigma)
+        xy = gaussian_kernel(x, y, sigma=sigma)
+        
+        mmd_value = xx.mean() + yy.mean() - 2 * xy.mean()
+    
+    # 返回 MMD（而不是 MMD^2）
+    return torch.sqrt(torch.clamp(mmd_value, min=0.0)).item()
+
+
 def compute_marginal_loss(x_fake, x_real):
     """
     计算边缘分布损失
@@ -147,19 +256,25 @@ if __name__ == "__main__":
     print(f"x_real1: {x_real1.shape}")
     print(f"x_real2: {x_real2.shape}")
     
-    # 计算边缘分布损失
+    # 计算边缘分布损失和 MMD
     print("\n" + "="*60)
-    print("比较 train_data (resub1234567) vs test_data (resub1234567)")
+    print("比较 train_data (resub1234567) vs test_data_gen (resub8)")
     print("="*60)
     loss1 = compute_marginal_loss(x_fake, x_real1)
+    print("\n计算 Maximum Mean Discrepancy (MMD)...")
+    mmd1 = compute_mmd(x_fake, x_real1)
+    print(f"MMD: {mmd1:.6f}")
     
     print("\n" + "="*60)
     print("比较 train_data (resub1234567) vs test_data (resub8)")
     print("="*60)
     loss2 = compute_marginal_loss(x_fake, x_real2)
+    print("\n计算 Maximum Mean Discrepancy (MMD)...")
+    mmd2 = compute_mmd(x_fake, x_real2)
+    print(f"MMD: {mmd2:.6f}")
     
     print("\n" + "="*60)
     print("总结")
     print("="*60)
-    print(f"resub1234567 train vs test_gen 损失: {loss1:.6f}")
-    print(f"resub1234567 train vs resub8 test 损失: {loss2:.6f}")
+    print(f"resub1234567 train vs test_gen 边缘分布损失: {loss1:.6f}, MMD: {mmd1:.6f}")
+    print(f"resub1234567 train vs resub8 test 边缘分布损失: {loss2:.6f}, MMD: {mmd2:.6f}")
