@@ -5,40 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6d49380b-100a-41f2-9d1d-963f30a18444" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluations/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluations/evaluator.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluations/requirements.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/dist_util.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/eeg_datasets.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/fp16_util.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/gaussian_diffusion.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/image_datasets.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/logger.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/losses.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/nn.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/resample.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/respace.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/script_util.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/train_util.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/guided_diffusion/unet.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/model-card.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/batch_evaluate_models.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/classifier_sample.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/classifier_train.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/eeg_sample.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/eeg_train.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/embed_eeg_data.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/image_nll.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/image_sample.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/image_train.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/monitor_training.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/prepare_eeg_data.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/super_res_sample.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/super_res_train.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/setup.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/eeg_adapt/datasets/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/eeg_adapt/datasets/lsun_bedroom.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/eeg_adapt/scripts/eeg_sample.py" beforeDir="false" afterPath="$PROJECT_DIR$/eeg_adapt/scripts/eeg_sample.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -60,9 +30,10 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "Python.batch_evaluate_models copy.executor": "Run",
+    "Python.quick_start copy.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "git-widget-placeholder": "main",
-    "last_opened_file_path": "//wsl.localhost/Ubuntu-20.04/home/xyr/workspace/testeeg - 副本",
+    "last_opened_file_path": "//wsl.localhost/Ubuntu-20.04/home/xyr/workspace/DDA",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -91,6 +62,8 @@
       <workItem from="1760495168661" duration="2612000" />
       <workItem from="1760535670884" duration="667000" />
       <workItem from="1760598321756" duration="5231000" />
+      <workItem from="1760613988889" duration="1806000" />
+      <workItem from="1760686299114" duration="1101000" />
     </task>
     <servers />
   </component>
@@ -98,6 +71,7 @@
     <option name="version" value="3" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/testeeg$quick_start_copy.coverage" NAME="quick_start copy 覆盖结果" MODIFIED="1760686366981" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/eeg_adapt" />
     <SUITE FILE_PATH="coverage/testeeg$batch_evaluate_models_copy.coverage" NAME="batch_evaluate_models copy 覆盖结果" MODIFIED="1760600538100" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/scripts" />
   </component>
 </project>

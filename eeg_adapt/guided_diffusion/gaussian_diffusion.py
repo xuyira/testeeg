@@ -538,8 +538,10 @@ class GaussianDiffusion:
 
             indices = tqdm(indices)
 
-        shape_u = (shape[0], 3, shape[2], shape[3])
-        shape_d = (shape[0], 3, int(shape[2] / D), int(shape[3] / D))
+        # 使用实际的通道数 shape[1]，而不是硬编码的3（RGB）
+        # 对于EEG数据，这将是22个通道
+        shape_u = (shape[0], shape[1], shape[2], shape[3])
+        shape_d = (shape[0], shape[1], int(shape[2] / D), int(shape[3] / D))
 
         for i in indices:
             t = th.tensor([i] * shape[0], device=device)

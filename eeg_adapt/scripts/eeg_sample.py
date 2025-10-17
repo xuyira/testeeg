@@ -355,7 +355,7 @@ def create_argparser():
         # 频率引导参数（基于梯度的方法）
         D=8,  # 频率引导的下采样倍数 (控制频率级别)
         scale=1.0,  # 频率引导的强度 (梯度缩放系数)
-        N=None,  # 可选：从特定时间步开始采样
+        N=50,  # 可选：从特定时间步开始采样
     )
     defaults.update(model_and_diffusion_defaults())
     # 为 EEG 数据设置默认参数
