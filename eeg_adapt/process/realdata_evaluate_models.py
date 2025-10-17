@@ -122,7 +122,7 @@ if __name__ == "__main__":
     # 如果不是，请根据实际情况调整 transpose 参数
     print("加载数据...")
     x_fake_np  = np.load('eeg_adapt/datasets/eegdata/bci2a/resub1234567/train_data.npy')
-    x_real1_np = np.load('eeg_adapt/datasets/eegdata/bci2a/resub1234567/test_data.npy')
+    x_real1_np = np.load('eeg_adapt/datasets/eegdata/bci2a/resub8/test_data_gen.npy')
     x_real2_np = np.load('eeg_adapt/datasets/eegdata/bci2a/resub8/test_data.npy')
     
     print(f"x_fake 形状: {x_fake_np.shape}")
@@ -161,5 +161,5 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("总结")
     print("="*60)
-    print(f"resub1234567 train vs test 损失: {loss1:.6f}")
+    print(f"resub1234567 train vs test_gen 损失: {loss1:.6f}")
     print(f"resub1234567 train vs resub8 test 损失: {loss2:.6f}")

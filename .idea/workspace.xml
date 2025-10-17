@@ -6,9 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="6d49380b-100a-41f2-9d1d-963f30a18444" name="更改" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/eeg_adapt/datasets/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/eeg_adapt/datasets/lsun_bedroom.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/eeg_adapt/scripts/eeg_sample.py" beforeDir="false" afterPath="$PROJECT_DIR$/eeg_adapt/scripts/eeg_sample.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eeg_adapt/process/realdata_evaluate_models.py" beforeDir="false" afterPath="$PROJECT_DIR$/eeg_adapt/process/realdata_evaluate_models.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -17,6 +15,9 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="PerforceDirect.Settings">
+    <option name="CHARSET" value="无" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 5
@@ -63,7 +64,7 @@
       <workItem from="1760535670884" duration="667000" />
       <workItem from="1760598321756" duration="5231000" />
       <workItem from="1760613988889" duration="1806000" />
-      <workItem from="1760686299114" duration="1101000" />
+      <workItem from="1760686299114" duration="1465000" />
     </task>
     <servers />
   </component>
