@@ -258,7 +258,18 @@ class ExP():
                 image_size=64,
                 in_channels=22,
                 diffusion_steps=1000,
-                noise_schedule='cosine'
+                noise_schedule='cosine',
+                # 以下参数与训练时一致
+                num_channels=128,
+                num_res_blocks=2,
+                learn_sigma=True,
+                use_fp16=True,
+                attention_resolutions="32,16,8",
+                dropout=0.1,
+                num_head_channels=64,
+                resblock_updown=True,
+                use_new_attention_order=True,
+                use_scale_shift_norm=True
             )
         else:
             self.generator = None
@@ -281,12 +292,11 @@ class ExP():
         # 移除 channel 维度: (batch, 1, 22, 1000) -> (batch, 22, 1000)
         data_squeezed = data.squeeze(1)
         
-        # 生成数据
-        with torch.no_grad():
-            original, generated = self.generator.generate(
-                data_squeezed, 
-                verbose=False
-            )
+        # 生成数据（不使用 no_grad，让生成器内部处理梯度）
+        original, generated = self.generator.generate(
+            data_squeezed, 
+            verbose=False
+        )
         
         # 拼接原始和生成: (batch, 22, 1000) + (batch, 22, 1000) -> (batch, 44, 1000)
         concatenated = np.concatenate([original, generated], axis=1)
@@ -397,10 +407,15 @@ class ExP():
     def train(self):
         img, label, test_data, test_label = self.get_source_data()
 
-        # 训练数据增强（应用生成器）
-        print(f"\n🔄 对训练数据应用生成器增强...")
-        img_augmented = self.augment_with_generator(img)
-        print(f"   增强后训练数据形状: {img_augmented.shape}")
+        # 训练数据处理
+        if self.use_generator:
+            print(f"\n🔄 对训练数据应用生成器增强...")
+            img_augmented = self.augment_with_generator(img)
+            print(f"   增强后训练数据形状: {img_augmented.shape} (22原始 + 22生成 = 44通道)")
+        else:
+            print(f"\n📊 准备训练数据（标准模式，22通道）...")
+            img_augmented = self.augment_with_generator(img)
+            print(f"   训练数据形状: {img_augmented.shape}")
         
         label = torch.from_numpy(label - 1)
         dataset = torch.utils.data.TensorDataset(img_augmented, label)
@@ -408,10 +423,15 @@ class ExP():
             dataset=dataset, batch_size=self.batch_size, shuffle=True
         )
 
-        # 测试数据增强（应用生成器）
-        print(f"🔄 对测试数据应用生成器增强...")
-        test_data_augmented = self.augment_with_generator(test_data)
-        print(f"   增强后测试数据形状: {test_data_augmented.shape}\n")
+        # 测试数据处理
+        if self.use_generator:
+            print(f"🔄 对测试数据应用生成器增强...")
+            test_data_augmented = self.augment_with_generator(test_data)
+            print(f"   增强后测试数据形状: {test_data_augmented.shape} (22原始 + 22生成 = 44通道)\n")
+        else:
+            print(f"📊 准备测试数据（标准模式，22通道）...")
+            test_data_augmented = self.augment_with_generator(test_data)
+            print(f"   测试数据形状: {test_data_augmented.shape}\n")
         
         test_label = torch.from_numpy(test_label - 1)
         test_dataset = torch.utils.data.TensorDataset(test_data_augmented, test_label)

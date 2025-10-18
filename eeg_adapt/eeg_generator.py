@@ -85,27 +85,35 @@ class EEGGenerator:
         
         print(f"🖥️  使用设备: {self.device}")
         
-        # 模型配置
-        model_config = {
+        # 模型配置（使用完整的默认参数）
+        from eeg_adapt.guided_diffusion.script_util import model_and_diffusion_defaults
+        
+        # 获取所有默认参数
+        model_config = model_and_diffusion_defaults()
+        
+        # 更新关键参数
+        model_config.update({
             'image_size': image_size,
             'in_channels': in_channels,
             'num_channels': 128,
             'num_res_blocks': 2,
             'num_heads': 4,
             'num_head_channels': 64,
-            'attention_resolutions': "16,8",
-            'dropout': 0.0,
+            'attention_resolutions': "32,16,8",
+            'dropout': 0.1,
             'diffusion_steps': diffusion_steps,
             'noise_schedule': noise_schedule,
-            'learn_sigma': False,
+            'learn_sigma': True,
             'class_cond': False,
             'use_checkpoint': False,
             'use_scale_shift_norm': True,
-            'resblock_updown': False,
-            'use_fp16': False,
-            'use_new_attention_order': False,
+            'resblock_updown': True,
+            'use_fp16': True,
+            'use_new_attention_order': True,
             'timestep_respacing': "",
-        }
+        })
+        
+        # 应用用户提供的其他参数
         model_config.update(model_kwargs)
         
         # 创建模型
@@ -115,6 +123,12 @@ class EEGGenerator:
             dist_util.load_state_dict(model_path, map_location="cpu")
         )
         self.model.to(self.device)
+        
+        # 如果使用 FP16，需要转换模型
+        if model_config.get('use_fp16', False):
+            self.model.convert_to_fp16()
+            print(f"🔧 已转换为 FP16 模式")
+        
         self.model.eval()
         print(f"✅ 模型加载完成")
         
@@ -180,9 +194,8 @@ class EEGGenerator:
         """
         signals = self.img_to_ts(images)  # (trials, timepoints, channels)
         signals = signals.permute(0, 2, 1)  # (trials, channels, timepoints)
-        return signals.cpu().numpy()
+        return signals.cpu().detach().numpy()
     
-    @th.no_grad()
     def generate(
         self,
         eeg_data: np.ndarray,
@@ -228,8 +241,9 @@ class EEGGenerator:
         
         # 生成
         if verbose:
-            print(f"   开始生成... (D={self.D}, scale={self.scale})")
+            print(f"   开始生成... (D={self.D}, scale={self.scale}, N={self.N})")
         
+        # ILVR 模式需要梯度，不使用 no_grad
         generated_images = self.diffusion.p_sample_loop(
             self.model,
             images.shape,
@@ -252,7 +266,7 @@ class EEGGenerator:
             print(f"   输出形状: {generated_signals.shape}")
         
         if return_images:
-            return original_data, generated_signals, images.cpu().numpy(), generated_images.cpu().numpy()
+            return original_data, generated_signals, images.cpu().detach().numpy(), generated_images.cpu().detach().numpy()
         else:
             return original_data, generated_signals
     
