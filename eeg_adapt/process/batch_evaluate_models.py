@@ -28,6 +28,7 @@ from eeg_adapt.guided_diffusion.script_util import (
     args_to_dict,
     add_dict_to_argparser,
 )
+from eeg_adapt.guided_diffusion.fp16_util import make_master_params
 
 
 class Loss:
@@ -258,7 +259,7 @@ def evaluate_single_model(model_path, test_data, args, device):
         
         # 加载模型权重
         print(f"加载模型权重...")
-        state_dict = torch.load(model_path, map_location=device)
+        state_dict = torch.load(model_path, map_location=device, weights_only=False)
         
         # 处理可能的 EMA 权重或 DDP 包装
         if 'state_dict' in state_dict:
@@ -274,6 +275,11 @@ def evaluate_single_model(model_path, test_data, args, device):
         
         model.load_state_dict(new_state_dict)
         model.to(device)
+        
+        # 如果使用 FP16，需要转换模型
+        if args.use_fp16:
+            model.convert_to_fp16()
+        
         model.eval()
         
         # 确定评估样本数量
