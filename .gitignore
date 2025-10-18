@@ -3,6 +3,8 @@ __pycache__/
 classify_image_graph_def.pb
 
 eeg_adapt/datasets/eegdata/
+model_adapt/eeg-conformer/data/
+
 *.log
 logs/
 

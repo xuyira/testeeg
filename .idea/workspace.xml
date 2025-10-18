@@ -4,10 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="6d49380b-100a-41f2-9d1d-963f30a18444" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/eeg_adapt/process/batch_evaluate_models.py" beforeDir="false" afterPath="$PROJECT_DIR$/eeg_adapt/process/batch_evaluate_models.py" afterDir="false" />
-    </list>
+    <list default="true" id="6d49380b-100a-41f2-9d1d-963f30a18444" name="更改" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -65,7 +62,7 @@
       <workItem from="1760598321756" duration="5231000" />
       <workItem from="1760613988889" duration="1806000" />
       <workItem from="1760686299114" duration="3263000" />
-      <workItem from="1760756897107" duration="1268000" />
+      <workItem from="1760756897107" duration="1817000" />
     </task>
     <servers />
   </component>
