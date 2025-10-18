@@ -120,6 +120,60 @@ def compute_marginal_loss(x_fake, x_real):
     return marginal_loss
 
 
+def compute_ilvr_metrics(generated_images, reference_images, generated_ts, reference_ts):
+    """
+    计算 ILVR 模式下的评估指标
+    
+    参数:
+        generated_images: 生成的图像数据 (N, C, H, W)
+        reference_images: 参考图像数据 (N, C, H, W)
+        generated_ts: 生成的时间序列 (N, T, C)
+        reference_ts: 参考时间序列 (N, T, C)
+    
+    返回:
+        metrics: 包含各种指标的字典
+    """
+    print("\n计算 ILVR 评估指标...")
+    metrics = {}
+    
+    # 1. 图像级别的 MSE
+    img_mse = np.mean((generated_images - reference_images) ** 2)
+    metrics['image_mse'] = float(img_mse)
+    print(f"  图像 MSE: {img_mse:.6f}")
+    
+    # 2. 时间序列级别的 MSE
+    ts_mse = np.mean((generated_ts - reference_ts) ** 2)
+    metrics['timeseries_mse'] = float(ts_mse)
+    print(f"  时间序列 MSE: {ts_mse:.6f}")
+    
+    # 3. 通道维度的相关系数 (每个通道的平均相关系数)
+    correlations = []
+    for ch in range(generated_ts.shape[2]):  # 对每个通道
+        gen_ch = generated_ts[:, :, ch].flatten()
+        ref_ch = reference_ts[:, :, ch].flatten()
+        corr = np.corrcoef(gen_ch, ref_ch)[0, 1]
+        correlations.append(corr)
+    avg_correlation = np.mean(correlations)
+    metrics['avg_channel_correlation'] = float(avg_correlation)
+    print(f"  平均通道相关系数: {avg_correlation:.6f}")
+    
+    # 4. 边缘分布差异
+    gen_tensor = torch.Tensor(generated_ts).float()
+    ref_tensor = torch.Tensor(reference_ts).float()
+    marginal_loss = HistoLoss(x_real=ref_tensor, n_bins=50, name='marginal_loss')(gen_tensor).item()
+    metrics['marginal_loss'] = float(marginal_loss)
+    print(f"  边缘分布损失: {marginal_loss:.6f}")
+    
+    # 5. 信号能量保持度 (能量相对误差)
+    gen_energy = np.sum(generated_ts ** 2, axis=(1, 2))
+    ref_energy = np.sum(reference_ts ** 2, axis=(1, 2))
+    energy_error = np.mean(np.abs(gen_energy - ref_energy) / (ref_energy + 1e-8))
+    metrics['energy_relative_error'] = float(energy_error)
+    print(f"  能量相对误差: {energy_error:.6f}")
+    
+    return metrics
+
+
 def load_test_data(data_path):
     """
     加载测试数据
@@ -139,7 +193,8 @@ def load_test_data(data_path):
     return test_data
 
 
-def generate_samples_from_model(model, diffusion, num_samples, batch_size, in_channels, image_size, device):
+def generate_samples_from_model(model, diffusion, num_samples, batch_size, in_channels, image_size, device, 
+                                ref_images=None, use_ilvr=False, D=8, scale=1.0, N=None):
     """
     从模型生成样本
     
@@ -151,6 +206,11 @@ def generate_samples_from_model(model, diffusion, num_samples, batch_size, in_ch
         in_channels: 输入通道数
         image_size: 图像大小
         device: 设备
+        ref_images: 参考图像 (用于 ILVR 模式)
+        use_ilvr: 是否使用 ILVR 模式
+        D: ILVR 频率引导的下采样倍数
+        scale: ILVR 频率引导的强度
+        N: ILVR 起始时间步
     
     返回:
         generated_samples: numpy 数组
@@ -159,21 +219,40 @@ def generate_samples_from_model(model, diffusion, num_samples, batch_size, in_ch
     all_samples = []
     
     num_batches = (num_samples + batch_size - 1) // batch_size
-    print(f"\n生成 {num_samples} 个样本 (batch_size={batch_size}, {num_batches} 个批次)...")
+    
+    if use_ilvr:
+        print(f"\n生成 {num_samples} 个样本 (ILVR 模式: D={D}, scale={scale}, N={N}, batch_size={batch_size}, {num_batches} 个批次)...")
+    else:
+        print(f"\n生成 {num_samples} 个样本 (标准模式, batch_size={batch_size}, {num_batches} 个批次)...")
     
     with torch.no_grad():
         for i in tqdm(range(num_batches), desc="生成样本"):
-            current_batch_size = min(batch_size, num_samples - i * batch_size)
+            start_idx = i * batch_size
+            end_idx = min(start_idx + batch_size, num_samples)
+            current_batch_size = end_idx - start_idx
+            
+            # 准备模型参数
+            model_kwargs = {}
+            noise = None
+            
+            if use_ilvr and ref_images is not None:
+                # ILVR 模式：使用参考图像
+                batch_ref = torch.from_numpy(ref_images[start_idx:end_idx]).float().to(device)
+                model_kwargs["ref_img"] = batch_ref
+                noise = batch_ref  # 使用参考图像作为初始噪声
             
             # 生成样本
-            model_kwargs = {}
             sample = diffusion.p_sample_loop(
                 model,
                 (current_batch_size, in_channels, image_size, image_size),
                 clip_denoised=True,
                 model_kwargs=model_kwargs,
+                noise=noise,
                 device=device,
                 progress=False,
+                D=D if use_ilvr else 8,
+                scale=scale if use_ilvr else 1.0,
+                N=N if use_ilvr else None,
             )
             
             all_samples.append(sample.cpu().numpy())
@@ -294,10 +373,18 @@ def evaluate_single_model(model_path, test_data, args, device):
             num_samples = min(args.num_eval_samples, test_data.shape[0])
             print(f"使用 {num_samples} 个样本进行评估")
         
+        # 准备参考数据
+        reference_images = test_data[:num_samples]
+        
         # 生成样本
         generated_images = generate_samples_from_model(
             model, diffusion, num_samples, args.batch_size,
-            args.in_channels, args.image_size, device
+            args.in_channels, args.image_size, device,
+            ref_images=reference_images if args.use_ilvr else None,
+            use_ilvr=args.use_ilvr,
+            D=args.ilvr_D,
+            scale=args.ilvr_scale,
+            N=args.ilvr_N
         )
         
         print(f"生成数据形状: {generated_images.shape}")
@@ -305,30 +392,49 @@ def evaluate_single_model(model_path, test_data, args, device):
         # 转换为时间序列格式
         print("转换图像数据为时间序列格式...")
         gen_timeseries = img_to_ts(generated_images)
+        ref_timeseries = img_to_ts(reference_images)
         
-        # 准备真实数据
-        real_images = test_data[:num_samples]
-        real_timeseries = img_to_ts(real_images)
-        
-        print(f"真实时间序列形状: {real_timeseries.shape}")
+        print(f"参考时间序列形状: {ref_timeseries.shape}")
         print(f"生成时间序列形状: {gen_timeseries.shape}")
         
-        # 转换为 Tensor
-        real_tensor = torch.Tensor(real_timeseries).float()
-        gen_tensor = torch.Tensor(gen_timeseries).float()
-        
         # 计算评估指标
-        marginal_loss = compute_marginal_loss(gen_tensor, real_tensor)
-        
-        print(f"\n最终评估结果:")
-        print(f"  边缘分布损失: {marginal_loss:.6f}")
-        
-        return {
-            'model_path': model_path,
-            'success': True,
-            'marginal_loss': marginal_loss,
-            'error': None
-        }
+        if args.use_ilvr:
+            # ILVR 模式：计算参考和生成之间的差异
+            metrics = compute_ilvr_metrics(
+                generated_images, reference_images,
+                gen_timeseries, ref_timeseries
+            )
+            
+            print(f"\n最终评估结果 (ILVR 模式):")
+            print(f"  图像 MSE:           {metrics['image_mse']:.6f}")
+            print(f"  时间序列 MSE:       {metrics['timeseries_mse']:.6f}")
+            print(f"  平均通道相关系数:   {metrics['avg_channel_correlation']:.6f}")
+            print(f"  边缘分布损失:       {metrics['marginal_loss']:.6f}")
+            print(f"  能量相对误差:       {metrics['energy_relative_error']:.6f}")
+            
+            return {
+                'model_path': model_path,
+                'success': True,
+                'mode': 'ilvr',
+                **metrics,
+                'error': None
+            }
+        else:
+            # 标准模式：计算边缘分布损失
+            real_tensor = torch.Tensor(ref_timeseries).float()
+            gen_tensor = torch.Tensor(gen_timeseries).float()
+            marginal_loss = compute_marginal_loss(gen_tensor, real_tensor)
+            
+            print(f"\n最终评估结果 (标准模式):")
+            print(f"  边缘分布损失: {marginal_loss:.6f}")
+            
+            return {
+                'model_path': model_path,
+                'success': True,
+                'mode': 'standard',
+                'marginal_loss': marginal_loss,
+                'error': None
+            }
         
     except Exception as e:
         print(f"\n错误: 评估模型时出错: {str(e)}")
@@ -366,6 +472,16 @@ def main():
                        help='评估模型类型: ema(仅EMA模型), model(仅普通模型), all(两者都评估)')
     parser.add_argument('--timestep_respacing', type=str, default='',
                        help='采样步数重采样，如"100"表示用100步代替1000步，可大幅加速。留空则使用全部步数')
+    
+    # ILVR 模式参数
+    parser.add_argument('--use_ilvr', action='store_true',
+                       help='使用 ILVR 模式评估（基于参考图像的频率引导）')
+    parser.add_argument('--ilvr_D', type=int, default=8,
+                       help='ILVR 频率引导的下采样倍数 (默认: 8)')
+    parser.add_argument('--ilvr_scale', type=float, default=1.0,
+                       help='ILVR 频率引导的强度 (默认: 1.0)')
+    parser.add_argument('--ilvr_N', type=int, default=None,
+                       help='ILVR 起始时间步 (默认: None, 从头开始)')
     
     # 模型参数（需要与训练时一致）
     # 以下默认参数已根据训练配置设置
@@ -464,6 +580,12 @@ def main():
     output_path = os.path.join(args.model_dir, args.output_file)
     print(f"\n保存评估结果到: {output_path}")
     
+    # 确保输出目录存在
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"创建输出目录: {output_dir}")
+    
     results_summary = {
         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'test_data_path': args.test_data_path,
@@ -491,9 +613,21 @@ def main():
         print(f"\n成功评估的模型结果:")
         for result in successful:
             model_name = os.path.basename(result['model_path'])
-            marginal_loss = result['marginal_loss']
             print(f"\n  {model_name}:")
-            print(f"    边缘分布损失: {marginal_loss:.6f}")
+            
+            if result.get('mode') == 'ilvr':
+                # ILVR 模式显示更多指标
+                print(f"    模式: ILVR")
+                print(f"    图像 MSE:           {result.get('image_mse', 0):.6f}")
+                print(f"    时间序列 MSE:       {result.get('timeseries_mse', 0):.6f}")
+                print(f"    平均通道相关系数:   {result.get('avg_channel_correlation', 0):.6f}")
+                print(f"    边缘分布损失:       {result.get('marginal_loss', 0):.6f}")
+                print(f"    能量相对误差:       {result.get('energy_relative_error', 0):.6f}")
+            else:
+                # 标准模式只显示边缘分布损失
+                print(f"    模式: 标准")
+                marginal_loss = result.get('marginal_loss', 0)
+                print(f"    边缘分布损失: {marginal_loss:.6f}")
     
     if failed:
         print(f"\n失败的模型:")
