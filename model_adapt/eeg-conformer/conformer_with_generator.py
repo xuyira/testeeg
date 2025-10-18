@@ -428,6 +428,7 @@ class ExP():
         # 训练数据处理
         if self.use_generator:
             print(f"\n🔄 对训练数据应用生成器增强...")
+            print(img.shape)
             img_augmented = self.augment_with_generator(img)
             print(f"   增强后训练数据形状: {img_augmented.shape} (22原始 + 22生成 = 44通道)")
         else:
