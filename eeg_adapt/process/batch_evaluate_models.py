@@ -360,6 +360,7 @@ def main():
                        help='采样步数重采样，如"100"表示用100步代替1000步，可大幅加速。留空则使用全部步数')
     
     # 模型参数（需要与训练时一致）
+    # 以下默认参数已根据训练配置设置
     parser.add_argument('--image_size', type=int, default=64,
                        help='图像大小')
     parser.add_argument('--in_channels', type=int, default=22,
@@ -368,20 +369,42 @@ def main():
                        help='模型通道数')
     parser.add_argument('--num_res_blocks', type=int, default=2,
                        help='残差块数量')
-    parser.add_argument('--learn_sigma', action='store_true',
-                       help='是否学习 sigma')
+    parser.add_argument('--learn_sigma', action='store_true', default=True,
+                       help='是否学习 sigma (默认: True)')
     parser.add_argument('--class_cond', action='store_true',
-                       help='是否使用类条件')
-    parser.add_argument('--use_fp16', action='store_true',
-                       help='是否使用 FP16')
-    parser.add_argument('--attention_resolutions', type=str, default='16,8',
+                       help='是否使用类条件 (默认: False)')
+    parser.add_argument('--use_fp16', action='store_true', default=True,
+                       help='是否使用 FP16 (默认: True)')
+    parser.add_argument('--attention_resolutions', type=str, default='32,16,8',
                        help='注意力分辨率')
+    parser.add_argument('--dropout', type=float, default=0.1,
+                       help='Dropout 比率')
+    parser.add_argument('--noise_schedule', type=str, default='cosine',
+                       choices=['linear', 'cosine'],
+                       help='噪声调度策略')
+    parser.add_argument('--num_head_channels', type=int, default=64,
+                       help='注意力头的通道数')
+    parser.add_argument('--resblock_updown', action='store_true', default=True,
+                       help='在上采样/下采样中使用残差块')
+    parser.add_argument('--use_new_attention_order', action='store_true', default=True,
+                       help='使用新的注意力顺序')
+    parser.add_argument('--use_scale_shift_norm', action='store_true', default=True,
+                       help='使用 scale shift norm')
+    parser.add_argument('--diffusion_steps', type=int, default=1000,
+                       help='扩散步数')
     
-    # 其他模型默认参数
+    # 其他模型默认参数（自动添加未明确定义的参数）
     defaults = model_and_diffusion_defaults()
+    # 排除已经明确定义的参数
+    explicitly_defined = [
+        'image_size', 'in_channels', 'num_channels', 'num_res_blocks', 
+        'learn_sigma', 'class_cond', 'use_fp16', 'attention_resolutions', 
+        'dropout', 'noise_schedule', 'num_head_channels', 'resblock_updown',
+        'use_new_attention_order', 'use_scale_shift_norm', 'diffusion_steps',
+        'timestep_respacing'
+    ]
     for k, v in defaults.items():
-        if k not in ['image_size', 'in_channels', 'num_channels', 'num_res_blocks', 
-                     'learn_sigma', 'class_cond', 'use_fp16', 'attention_resolutions', 'timestep_respacing']:
+        if k not in explicitly_defined:
             if isinstance(v, bool):
                 parser.add_argument(f'--{k}', action='store_true' if not v else 'store_false',
                                   default=v, help=f'{k} (default: {v})')
