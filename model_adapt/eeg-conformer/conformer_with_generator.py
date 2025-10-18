@@ -302,27 +302,28 @@ class ExP():
         Returns:
             augmented_data: (batch, 1, 44, 1000) torch tensor
         """
-        if not self.use_generator or self.generator is None:
-            # 不使用生成器，直接返回原始数据
-            return torch.from_numpy(data).cuda().float()
-        
-        # 移除 channel 维度: (batch, 1, 22, 1000) -> (batch, 22, 1000)
-        data_squeezed = data.squeeze(1)
-        
-        # 生成数据（不使用 no_grad，让生成器内部处理梯度）
-        original, generated = self.generator.generate(
-            data_squeezed, 
-            verbose=False
-        )
-        
-        # 拼接原始和生成: (batch, 22, 1000) + (batch, 22, 1000) -> (batch, 44, 1000)
-        concatenated = np.concatenate([original, generated], axis=1)
-        
-        # 添加 channel 维度: (batch, 44, 1000) -> (batch, 1, 44, 1000)
-        concatenated = np.expand_dims(concatenated, axis=1)
-        
-        # 转换为 tensor
-        return torch.from_numpy(concatenated).cuda().float()
+        with torch.no_grad():
+            if not self.use_generator or self.generator is None:
+                # 不使用生成器，直接返回原始数据
+                return torch.from_numpy(data).cuda().float()
+            
+            # 移除 channel 维度: (batch, 1, 22, 1000) -> (batch, 22, 1000)
+            data_squeezed = data.squeeze(1)
+            
+            # 生成数据（不使用 no_grad，让生成器内部处理梯度）
+            original, generated = self.generator.generate(
+                data_squeezed, 
+                verbose=False
+            )
+            
+            # 拼接原始和生成: (batch, 22, 1000) + (batch, 22, 1000) -> (batch, 44, 1000)
+            concatenated = np.concatenate([original, generated], axis=1)
+            
+            # 添加 channel 维度: (batch, 44, 1000) -> (batch, 1, 44, 1000)
+            concatenated = np.expand_dims(concatenated, axis=1)
+            
+            # 转换为 tensor
+            return torch.from_numpy(concatenated).cuda().float()
 
     def interaug(self, timg, label):
         """S&R 数据增强"""
