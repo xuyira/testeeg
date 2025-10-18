@@ -225,7 +225,9 @@ def generate_samples_from_model(model, diffusion, num_samples, batch_size, in_ch
     else:
         print(f"\n生成 {num_samples} 个样本 (标准模式, batch_size={batch_size}, {num_batches} 个批次)...")
     
-    with torch.no_grad():
+    # ILVR 模式需要梯度计算，标准模式不需要
+    if use_ilvr:
+        # ILVR 模式：不使用 no_grad，因为需要计算梯度进行频率引导
         for i in tqdm(range(num_batches), desc="生成样本"):
             start_idx = i * batch_size
             end_idx = min(start_idx + batch_size, num_samples)
@@ -235,13 +237,12 @@ def generate_samples_from_model(model, diffusion, num_samples, batch_size, in_ch
             model_kwargs = {}
             noise = None
             
-            if use_ilvr and ref_images is not None:
-                # ILVR 模式：使用参考图像
-                batch_ref = torch.from_numpy(ref_images[start_idx:end_idx]).float().to(device)
-                model_kwargs["ref_img"] = batch_ref
-                noise = batch_ref  # 使用参考图像作为初始噪声
+            # ILVR 模式：使用参考图像
+            batch_ref = torch.from_numpy(ref_images[start_idx:end_idx]).float().to(device)
+            model_kwargs["ref_img"] = batch_ref
+            noise = batch_ref  # 使用参考图像作为初始噪声
             
-            # 生成样本
+            # 生成样本（需要梯度）
             sample = diffusion.p_sample_loop(
                 model,
                 (current_batch_size, in_channels, image_size, image_size),
@@ -250,12 +251,34 @@ def generate_samples_from_model(model, diffusion, num_samples, batch_size, in_ch
                 noise=noise,
                 device=device,
                 progress=False,
-                D=D if use_ilvr else 8,
-                scale=scale if use_ilvr else 1.0,
-                N=N if use_ilvr else None,
+                D=D,
+                scale=scale,
+                N=N,
             )
             
-            all_samples.append(sample.cpu().numpy())
+            all_samples.append(sample.cpu().detach().numpy())
+    else:
+        # 标准模式：使用 no_grad 以节省内存
+        with torch.no_grad():
+            for i in tqdm(range(num_batches), desc="生成样本"):
+                start_idx = i * batch_size
+                end_idx = min(start_idx + batch_size, num_samples)
+                current_batch_size = end_idx - start_idx
+                
+                # 准备模型参数
+                model_kwargs = {}
+                
+                # 生成样本
+                sample = diffusion.p_sample_loop(
+                    model,
+                    (current_batch_size, in_channels, image_size, image_size),
+                    clip_denoised=True,
+                    model_kwargs=model_kwargs,
+                    device=device,
+                    progress=False,
+                )
+                
+                all_samples.append(sample.cpu().numpy())
     
     all_samples = np.concatenate(all_samples, axis=0)
     return all_samples[:num_samples]
