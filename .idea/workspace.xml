@@ -13,9 +13,6 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="PerforceDirect.Settings">
-    <option name="CHARSET" value="无" />
-  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 5
 }</component>
@@ -31,7 +28,7 @@
     "Python.quick_start copy.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "git-widget-placeholder": "main",
-    "last_opened_file_path": "//wsl.localhost/Ubuntu-20.04/home/xyr/workspace/DDA",
+    "last_opened_file_path": "//wsl.localhost/Ubuntu-20.04/home/xyr/workspace/EEG-Conformer",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -62,6 +59,7 @@
       <workItem from="1760598321756" duration="5231000" />
       <workItem from="1760613988889" duration="1806000" />
       <workItem from="1760686299114" duration="3263000" />
+      <workItem from="1760756897107" duration="608000" />
     </task>
     <servers />
   </component>

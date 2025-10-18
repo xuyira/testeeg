@@ -166,10 +166,12 @@ def generate_samples_from_model(model, diffusion, num_samples, batch_size, in_ch
             current_batch_size = min(batch_size, num_samples - i * batch_size)
             
             # 生成样本
+            model_kwargs = {}
             sample = diffusion.p_sample_loop(
                 model,
                 (current_batch_size, in_channels, image_size, image_size),
                 clip_denoised=True,
+                model_kwargs=model_kwargs,
                 device=device,
                 progress=False,
             )
