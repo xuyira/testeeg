@@ -9,13 +9,30 @@ EEG Conformer with Data Augmentation using Diffusion Generator
 
 import argparse
 import os
+import sys
+
+# ⚠️ 重要：在导入 torch 之前先解析 GPU 参数并设置环境变量
+def setup_gpu():
+    """早期解析 GPU 参数并设置环境变量"""
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('--gpus', type=str, default='0')
+    args, _ = parser.parse_known_args()
+    
+    os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
+    print(f"🖥️  设置 GPU: {args.gpus} (在导入 torch 之前)")
+    return args.gpus
+
+# 设置 GPU（必须在导入 torch 之前）
+requested_gpus = setup_gpu()
+
+# 现在导入 torch 相关库
 import numpy as np
 import math
 import random
 import datetime
 import time
 import scipy.io
-import sys
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -562,9 +579,20 @@ def main():
     
     args = parser.parse_args()
     
-    # 设置 GPU
-    os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
+    # 验证 GPU 设置（环境变量已在文件开头设置）
+    print(f"\n{'='*60}")
+    print(f"🖥️  GPU 配置验证")
+    print(f"{'='*60}")
+    print(f"请求的物理 GPU: {requested_gpus}")
+    print(f"CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES')}")
+    if torch.cuda.is_available():
+        print(f"PyTorch 可见 GPU 数量: {torch.cuda.device_count()}")
+        for i in range(torch.cuda.device_count()):
+            print(f"  逻辑设备 cuda:{i} → {torch.cuda.get_device_name(i)}")
+        print(f"✅ 将使用逻辑设备 cuda:0（映射到物理 GPU {requested_gpus}）")
+    else:
+        print(f"⚠️  未检测到 CUDA 设备")
+    print(f"{'='*60}\n")
     
     # 设置随机种子
     seed_n = np.random.randint(2021)
