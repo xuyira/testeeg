@@ -204,7 +204,7 @@ class Conformer(nn.Sequential):
 
 class ExP():
     def __init__(self, test_subject, total_sub=9, use_generator=True, 
-                 model_path=None, gen_D=8, gen_scale=1.0, gen_N=None):
+                 model_path=None, gen_D=8, gen_scale=1.0, gen_N=None, gen_batch_size=16):
         """
         Args:
             test_subject: 测试受试者编号 (1-9)
@@ -214,9 +214,10 @@ class ExP():
             gen_D: 生成器 D 参数
             gen_scale: 生成器 scale 参数
             gen_N: 生成器 N 参数（起始时间步）
+            gen_batch_size: 生成器批次大小（控制显存占用）
         """
         super(ExP, self).__init__()
-        self.batch_size = 72
+        self.batch_size = 64
         self.n_epochs = 1000
         self.c_dim = 4
         self.lr = 0.0002
@@ -230,6 +231,7 @@ class ExP():
         self.gen_D = gen_D
         self.gen_scale = gen_scale
         self.gen_N = gen_N
+        self.gen_batch_size = gen_batch_size  # 生成器批次大小
         
         # 早停参数
         self.patience = 200
@@ -262,7 +264,8 @@ class ExP():
             print(f"\n{'='*60}")
             print(f"🚀 初始化 EEG 扩散生成器")
             print(f"   模型路径: {model_path}")
-            print(f"   D={gen_D}, scale={gen_scale}, N={gen_N}")
+            print(f"   ILVR参数: D={gen_D}, scale={gen_scale}, N={gen_N}")
+            print(f"   批次大小: {gen_batch_size} (生成时的batch size)")
             print(f"   输入通道: {in_channels} (22原始 + 22生成)")
             print(f"{'='*60}\n")
             
@@ -292,27 +295,44 @@ class ExP():
             self.generator = None
             print(f"\n⚠️  不使用生成器，标准 22 通道模式\n")
 
-    def augment_with_generator(self, data):
+    def augment_with_generator(self, data, gen_batch_size=16):
         """
-        使用扩散生成器增强数据
+        使用扩散生成器增强数据（批量处理以节省显存）
         
         Args:
-            data: (batch, 1, 22, 1000) numpy array
+            data: (N, 1, 22, 1000) numpy array
+            gen_batch_size: 生成时的批次大小（越小越省显存，但越慢）
         
         Returns:
-            augmented_data: (batch, 1, 44, 1000) torch tensor
+            augmented_data: (N, 1, 44, 1000) torch tensor (如果用生成器)
+                           或 (N, 1, 22, 1000) torch tensor (如果不用生成器)
         """
-        with torch.no_grad():
-            if not self.use_generator or self.generator is None:
-                # 不使用生成器，直接返回原始数据
-                return torch.from_numpy(data).cuda().float()
+        
+        if not self.use_generator or self.generator is None:
+            # 不使用生成器，直接返回原始数据
+            return torch.from_numpy(data).cuda().float()
+        
+        # 批量处理以节省显存
+        num_samples = data.shape[0]
+        num_batches = (num_samples + gen_batch_size - 1) // gen_batch_size
+        
+        print(f"   批量生成中... ({num_samples} 样本，gen_batch_size={gen_batch_size}, {num_batches} 个批次)")
+        
+        augmented_list = []
+        
+        for i in range(num_batches):
+            start_idx = i * gen_batch_size
+            end_idx = min(start_idx + gen_batch_size, num_samples)
+            
+            # 当前批次
+            batch_data = data[start_idx:end_idx]
             
             # 移除 channel 维度: (batch, 1, 22, 1000) -> (batch, 22, 1000)
-            data_squeezed = data.squeeze(1)
+            batch_squeezed = batch_data.squeeze(1)
             
-            # 生成数据（不使用 no_grad，让生成器内部处理梯度）
+            # 生成数据
             original, generated = self.generator.generate(
-                data_squeezed, 
+                batch_squeezed, 
                 verbose=False
             )
             
@@ -322,8 +342,20 @@ class ExP():
             # 添加 channel 维度: (batch, 44, 1000) -> (batch, 1, 44, 1000)
             concatenated = np.expand_dims(concatenated, axis=1)
             
-            # 转换为 tensor
-            return torch.from_numpy(concatenated).cuda().float()
+            augmented_list.append(concatenated)
+            
+            # 显示进度
+            if (i + 1) % 10 == 0 or (i + 1) == num_batches:
+                print(f"      进度: {i+1}/{num_batches} 批次完成 ({end_idx}/{num_samples} 样本)")
+            
+            # 清理显存
+            torch.cuda.empty_cache()
+        
+        # 合并所有批次
+        all_augmented = np.concatenate(augmented_list, axis=0)
+        
+        # 转换为 tensor
+        return torch.from_numpy(all_augmented).cuda().float()
 
     def interaug(self, timg, label):
         """S&R 数据增强"""
@@ -428,12 +460,11 @@ class ExP():
         # 训练数据处理
         if self.use_generator:
             print(f"\n🔄 对训练数据应用生成器增强...")
-            print(img.shape)
-            img_augmented = self.augment_with_generator(img)
+            img_augmented = self.augment_with_generator(img, gen_batch_size=self.gen_batch_size)
             print(f"   增强后训练数据形状: {img_augmented.shape} (22原始 + 22生成 = 44通道)")
         else:
             print(f"\n📊 准备训练数据（标准模式，22通道）...")
-            img_augmented = self.augment_with_generator(img)
+            img_augmented = self.augment_with_generator(img, gen_batch_size=self.gen_batch_size)
             print(f"   训练数据形状: {img_augmented.shape}")
         
         label = torch.from_numpy(label - 1)
@@ -445,11 +476,11 @@ class ExP():
         # 测试数据处理
         if self.use_generator:
             print(f"🔄 对测试数据应用生成器增强...")
-            test_data_augmented = self.augment_with_generator(test_data)
+            test_data_augmented = self.augment_with_generator(test_data, gen_batch_size=self.gen_batch_size)
             print(f"   增强后测试数据形状: {test_data_augmented.shape} (22原始 + 22生成 = 44通道)\n")
         else:
             print(f"📊 准备测试数据（标准模式，22通道）...")
-            test_data_augmented = self.augment_with_generator(test_data)
+            test_data_augmented = self.augment_with_generator(test_data, gen_batch_size=self.gen_batch_size)
             print(f"   测试数据形状: {test_data_augmented.shape}\n")
         
         test_label = torch.from_numpy(test_label - 1)
@@ -574,6 +605,8 @@ def main():
                        help='生成器 scale 参数（频率引导强度）')
     parser.add_argument('--gen_N', type=int, default=None,
                        help='生成器 N 参数（ILVR起始时间步，None表示从头开始）')
+    parser.add_argument('--gen_batch_size', type=int, default=16,
+                       help='生成器批次大小（控制显存占用，越小越省显存但越慢）')
     
     # GPU 设置
     parser.add_argument('--gpus', type=str, default='0',
@@ -631,6 +664,7 @@ def main():
     if args.use_generator:
         result_write.write(f"Generator Model: {args.generator_model}\n")
         result_write.write(f"Generator D: {args.gen_D}, Scale: {args.gen_scale}, N: {args.gen_N}\n")
+        result_write.write(f"Generator Batch Size: {args.gen_batch_size}\n")
     result_write.write(f"\n{'='*60}\n\n")
     
     best_acc_sum = 0
@@ -653,7 +687,8 @@ def main():
             model_path=args.generator_model,
             gen_D=args.gen_D,
             gen_scale=args.gen_scale,
-            gen_N=args.gen_N
+            gen_N=args.gen_N,
+            gen_batch_size=args.gen_batch_size
         )
         
         bestAcc, averAcc, Y_true, Y_pred = exp.train()
