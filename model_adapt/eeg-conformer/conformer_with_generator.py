@@ -219,7 +219,7 @@ class ExP():
         self.min_delta = 0.0001
 
         self.start_epoch = 0
-        self.root = './data/standard_2a_data/'
+        self.root = './model_adapt/eeg-conformer/data/standard_2a_data/'
 
         # 创建结果目录
         os.makedirs('./results', exist_ok=True)
